@@ -69,6 +69,20 @@ body.home{background:#000}body.home header{display:none}
 @keyframes drift{from{transform:translateX(-80px)}to{transform:translateX(880px)}}
 @media(prefers-reduced-motion:reduce){.streak{animation:none}}
 @media(max-width:600px){main{padding:10px}.stages div{font-size:.7rem}}
+body.wide main{max-width:1280px}
+.play{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:12px;align-items:start}
+.stage{position:relative}
+#wc{width:100%;max-width:none;height:auto;aspect-ratio:900/540;border:1px solid var(--line);border-radius:12px;background:#0a0d1c;display:block;touch-action:none;cursor:pointer}
+.ctrl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.dpad{display:grid;grid-template-columns:repeat(3,40px);grid-template-rows:repeat(2,36px);gap:4px}
+.dpad button{padding:0;touch-action:none}#dU{grid-column:2}#dL{grid-column:1;grid-row:2}#dD{grid-column:2;grid-row:2}#dR{grid-column:3;grid-row:2}
+.pop{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(88%,380px);max-height:80%;overflow:auto;background:var(--panel);border:2px solid var(--accent);border-radius:14px;padding:12px;z-index:3;box-shadow:0 10px 40px #000a}
+.side{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;position:sticky;top:64px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin:8px 0}
+.tabsrow{display:flex;gap:4px;flex-wrap:wrap;margin:6px 0}
+.sidelist{max-height:340px;overflow:auto;padding-right:2px}
+.sidelist .opt{margin:4px 0;padding:6px 10px}
+@media(max-width:900px){.play{grid-template-columns:1fr}.side{position:static}}
 </style>
 </head>
 <body>
@@ -299,7 +313,7 @@ const FAIL={
  health:["Health collapsed","Radiation, cold, thirst and hunger wore your body down. Exercise, medical checks and shelter all matter on long missions."]
 };
 /* ============ STATE ============ */
-function fresh(){return {mode:null,phase:"home",sp:0,day:1,res:{o2:100,water:100,food:100,power:100,health:100,morale:80},dust:0,armor:0,energy:7,penalty:0,done:{},ev:null,seen:[],evLog:[],report:null,over:null,arrival:null,log:[],lastFx:""}}
+function fresh(){return {mode:null,phase:"home",sp:0,day:1,res:{o2:100,water:100,food:100,power:100,health:100,morale:80},dust:0,armor:0,energy:7,penalty:0,suitDust:0,cabinDust:0,crates:[],done:{},ev:null,seen:[],evLog:[],report:null,over:null,arrival:null,log:[],lastFx:""}}
 let S=(function(){try{const t=localStorage.getItem(SAVE_KEY);if(t)return Object.assign(fresh(),JSON.parse(t))}catch(e){}return fresh()})();
 function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(S))}catch(e){}}
 let V="home",TAB="chores",Q=null,LND=null;
@@ -345,20 +359,178 @@ function tip(){
   else if(S.energy>=3)t="You have spare energy. Science tasks earn Science Points.";
   else t="When you are out of energy, end the day.";
   return `<p class="small good">💡 Tip: ${esc(t)}</p>`}
-function renderBase(){
-  const free=MD().free;
-  const tabs=[["chores","🛠️ Survive"],["science","🔬 Science"],["supplies","📦 Supplies"]];
+/* ============ BASE: 2D WORLD ============ */
+const SOL=[[30,240,70,6],[150,240,140,6],[340,240,110,6],[500,240,50,6],[30,294,70,6],[150,294,140,6],[340,294,100,6],[490,294,60,6],[225,40,6,200],[395,40,6,200],[225,300,6,200],[395,300,6,200],[550,40,8,210],[550,290,8,210]];
+const RECTS=[[38,48,504,444],[540,256,70,28],[606,28,276,484]];
+const STN={
+ o2:{x:80,y:100,icon:"🫧",label:"O₂ scrubber",lamp:"o2"},
+ water:{x:170,y:100,icon:"💧",label:"Water recycler",lamp:"water"},
+ food:{x:310,y:100,icon:"🍲",label:"Galley",lamp:"food"},
+ lab:{x:470,y:100,icon:"🔬",label:"Science lab"},
+ gym:{x:110,y:420,icon:"🏋️",label:"Gym"},
+ comms:{x:310,y:420,icon:"📡",label:"Comms console",lamp:"morale"},
+ med:{x:440,y:370,icon:"🩺",label:"Med bay",lamp:"health"},
+ bunk:{x:500,y:455,icon:"🛏️",label:"Bunk"},
+ rest:{x:62,y:270,icon:"🌍",label:"Earth window"},
+ dustoff:{x:578,y:270,icon:"🧼",label:"Suit brush"},
+ solar:{x:770,y:150,icon:"☀️",label:"Solar array",lamp:"dust"},
+ shelter:{x:700,y:330,icon:"🧱",label:"Regolith pile"},
+ isru:{x:830,y:330,icon:"⚗️",label:"Oxygen maker"},
+ field:{x:850,y:220,icon:"🔭",label:"Field site"},
+ pad:{x:760,y:450,icon:"🛬",label:"Landing pad"}
+};
+const CHST={o2:"o2",water:"water",food:"food",dust:"solar",gym:"gym",call:"comms",med:"med",rest:"rest",shelter:"shelter",isru:"isru"};
+const OUTCH={dust:1,shelter:1,isru:1};
+const OUTRE=/crater|dune|riverbed|meteorite|cliff|lava|shadowed|space walk|boulder|rock layers|ice|sunset|sky|solar telescope|seismometer|instrument|sieve|volcanic|find water/i;
+const isOutSci=a=>OUTRE.test(a[0]);
+const NODES=[[60,270],[130,270],[315,270],[475,270],[540,270],[575,270],[650,270],[125,215],[125,325],[315,215],[315,325],[475,215],[465,325],[80,150],[170,150],[110,380],[430,330],[500,400],[310,380],[650,150],[650,400],[760,200],[760,380],[850,150],[850,280],[700,60],[880,450],[700,450],[760,330]];
+function ok(x,y){
+  let inn=false;for(const r of RECTS)if(x>=r[0]&&x<=r[0]+r[2]&&y>=r[1]&&y<=r[1]+r[3]){inn=true;break}
+  if(!inn)return false;
+  for(const s of SOL)if(x>s[0]-7&&x<s[0]+s[2]+7&&y>s[1]-7&&y<s[1]+s[3]+7)return false;
+  return true}
+function los(a,b){const n=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/6);for(let i=0;i<=n;i++){const t=n?i/n:0;if(!ok(a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t))return false}return true}
+let ADJ=null;
+function route(from,to){
+  if(!ADJ){ADJ=NODES.map((a,i)=>NODES.map((b,j)=>i!==j&&Math.hypot(a[0]-b[0],a[1]-b[1])<330&&los(a,b)))}
+  const pts=NODES.concat([from,to]),n=pts.length,N=NODES.length,s=n-2,t=n-1,dist=Array(n).fill(1e9),prev=Array(n).fill(-1),done=Array(n).fill(false);
+  dist[s]=0;
+  for(;;){let u=-1;for(let i=0;i<n;i++)if(!done[i]&&(u<0||dist[i]<dist[u]))u=i;if(u<0||dist[u]>=1e9)break;done[u]=true;if(u===t)break;
+    for(let v=0;v<n;v++){if(done[v]||v===u)continue;const link=(u<N&&v<N)?ADJ[u][v]:los(pts[u],pts[v]);if(!link)continue;const d=dist[u]+Math.hypot(pts[u][0]-pts[v][0],pts[u][1]-pts[v][1]);if(d<dist[v]){dist[v]=d;prev[v]=u}}}
+  if(prev[t]<0)return[];const out=[];for(let c=t;c!==s;c=prev[c])out.unshift(pts[c]);return out}
+let P={x:300,y:270,fx:0,fy:1,path:[],pending:null,near:null,t:0,moving:false,wasIn:true,trail:[],step:0},K={},LOOP=0,POP=false;
+function walkTo(x,y,pend){const p=route([P.x,P.y],[x,y]);if(!p.length){toast("You cannot walk there.");return}P.path=p;P.pending=pend||null}
+function goStation(id,act){const s=STN[id];closePop();if(Math.hypot(P.x-s.x,P.y-s.y)<16){P.path=[];act?act():execStation(id);return}walkTo(s.x,s.y,()=>act?act():execStation(id))}
+function needEnergy(e){if(S.energy<e){toast("Not enough energy. Go to bed to end the day.");return false}return true}
+function goChore(id){const c=CH.find(x=>x.id===id);if(!needEnergy(c.e))return;goStation(CHST[id],()=>doChore(id))}
+function goSci(i){const a=ACT[i];if(!needEnergy(a[1]))return;goStation(isOutSci(a)?"field":"lab",()=>doSci(i))}
+function goQuiz(){if(!needEnergy(1))return;goStation("comms",startQuiz)}
+function goCrate(k){goStation("pad",()=>openCrate(k))}
+function goBed(){goStation("bunk")}
+function openCrate(k){const i=S.crates[k];if(i===undefined)return;const s=SUP[i],t=applyFx(s.fx,0);S.crates.splice(k,1);log("📦 Opened "+s.n+" → "+t);toast("Crate opened: "+s.n);save();refresh()}
+function actionsAt(id){
+  const A=[];
+  const chore=Object.keys(CHST).find(k=>CHST[k]===id);
+  if(chore&&id!=="comms"){const c=CH.find(x=>x.id===chore);A.push({l:c.icon+" "+c.n,ctx:c.ctx,dis:S.energy<c.e||(c.max&&S.armor>=c.max),run:()=>doChore(chore)})}
+  if(id==="comms"){const c=CH.find(x=>x.id==="call");A.push({l:"📞 Call home (⚡1)",ctx:c.ctx,dis:S.energy<1,run:()=>doChore("call")});A.push({l:"❓ Mission Control quiz (⚡1)",ctx:"Answer questions to earn Science Points.",dis:S.energy<1,run:startQuiz})}
+  if(id==="lab"||id==="field")A.push({l:"🔬 Pick a task",ctx:"Open the Science tab in the sidebar and choose a task.",run:()=>{TAB="science";refresh()}});
+  if(id==="bunk")A.push({l:"🛏️ Sleep and end Day "+S.day,ctx:S.energy>0?"You still have "+S.energy+" energy left.":"A good night's rest.",run:endDay});
+  if(id==="dustoff")A.push({l:"🧼 Brush the dust off your suit",ctx:"Moon dust is sharp and sticks to everything. Brush it off before you go inside.",run:()=>{if(S.suitDust<1)toast("Your suit is already clean.");else{S.suitDust=0;log("🧼 Suit brushed clean.");toast("Suit clean!");refresh()}}});
+  if(id==="pad"){if(!S.crates.length)toast("No crates here. Order supplies in the Supplies tab.");S.crates.forEach((i,k)=>A.push({l:"📦 Open: "+SUP[i].n,ctx:SUP[i].ctx,run:()=>openCrate(k)}))}
+  return A}
+function execStation(id){
+  const A=actionsAt(id);if(!A.length)return;
+  if(A.length>1||id==="bunk"||id==="pad"){openPop(STN[id].label,A);return}
+  if(A[0].dis){toast(S.energy<1?"Not enough energy. Go to bed to end the day.":"Nothing more to do here.");return}
+  A[0].run()}
+function openPop(title,A){POP=true;const p=$("#pop");if(!p)return;p.hidden=false;p.innerHTML=`<b>${esc(title)}</b>`+A.map((a,i)=>`<button class="opt" ${a.dis?"disabled":""} onclick="popRun(${i})">${a.l}<span class="ctx">${esc(a.ctx||"")}</span></button>`).join("")+`<button class="sm" onclick="closePop()">Cancel</button>`;P.popA=A}
+function popRun(i){const a=P.popA[i];closePop();a.run()}
+function closePop(){POP=false;const p=$("#pop");if(p){p.hidden=true;p.innerHTML=""}}
+function useNear(){if(P.near)execStation(P.near)}
+function startDay(){P.x=490;P.y=420;P.path=[];P.pending=null;S.phase="day";save();go("base")}
+function refresh(){if(V==="base"){renderSide();chips();updateUse()}}
+function updateUse(){const b=$("#useBtn");if(!b)return;b.disabled=!P.near;b.textContent=P.near?"E: "+STN[P.near].label:"Walk to a station";}
+function stopLoop(){LOOP++}
+function startLoop(){stopLoop();const id=LOOP;let last=performance.now();(function f(now){if(id!==LOOP)return;const dt=Math.min(.05,(now-last)/1000);last=now;update(dt);draw();requestAnimationFrame(f)})(last)}
+function update(dt){
+  P.t+=dt;let dx=0,dy=0;
+  if(!POP){if(K.l)dx--;if(K.r)dx++;if(K.u)dy--;if(K.d)dy++}
+  const manual=dx||dy;
+  if(manual){P.path=[];P.pending=null}
+  else if(P.path.length&&!POP){const w=P.path[0],ex=w[0]-P.x,ey=w[1]-P.y,d=Math.hypot(ex,ey);if(d<5){P.path.shift();if(!P.path.length&&P.pending){const f=P.pending;P.pending=null;f()}}else{dx=ex/d;dy=ey/d}}
+  P.moving=false;
+  if(dx||dy){const m=Math.hypot(dx,dy);dx/=m;dy/=m;P.fx=dx;P.fy=dy;const sp=(P.x>=556?85:125)*dt,nx=P.x+dx*sp,ny=P.y+dy*sp;let mv=false;
+    if(ok(nx,P.y)){P.x=nx;mv=true}if(ok(P.x,ny)){P.y=ny;mv=true}
+    if(mv){P.moving=true;P.step+=sp;if(P.x>=556&&P.step>13){P.step=0;P.trail.push({x:P.x,y:P.y+8});if(P.trail.length>70)P.trail.shift()}}
+    else if(P.path.length){P.path=[];P.pending=null}}
+  const inNow=P.x<552;
+  if(inNow&&!P.wasIn&&S.suitDust>30){S.cabinDust=clamp(S.cabinDust+S.suitDust);S.suitDust=0;toast("Moon dust got inside the habitat! Brush your suit at the airlock next time.");log("🧤 Dust tracked into the cabin.");save();refresh()}
+  P.wasIn=inNow;
+  let best=null,bd=40;for(const id in STN){const s=STN[id],d=Math.hypot(P.x-s.x,P.y-s.y);if(d<bd){bd=d;best=id}}
+  if(best!==P.near){P.near=best;updateUse()}
+}
+function lampCol(id){const s=STN[id];if(!s.lamp)return null;const v=s.lamp==="dust"?100-S.dust:S.res[s.lamp];return v>50?"#4ade80":v>25?"#fbbf24":(Math.floor(P.t*3)%2?"#f87171":"#7f1d1d")}
+function draw(){
+  const cv=$("#wc");if(!cv)return;const c=cv.getContext("2d");c.clearRect(0,0,900,540);
+  // outside ground
+  let g=c.createLinearGradient(0,0,0,540);g.addColorStop(0,"#7b7f9c");g.addColorStop(1,"#4e5373");c.fillStyle=g;c.fillRect(556,0,344,540);
+  c.fillStyle="rgba(0,0,0,.18)";[[640,90,26,9],[880,60,18,6],[660,400,30,10],[870,400,22,8],[720,260,16,6],[880,300,16,6],[640,500,24,8]].forEach(a=>{c.beginPath();c.ellipse(a[0],a[1],a[2],a[3],0,0,6.3);c.fill()});
+  c.fillStyle="#5d6180";[[650,200],[690,420],[860,100],[880,380],[620,330]].forEach(a=>{c.beginPath();c.arc(a[0],a[1],6,0,6.3);c.fill()});
+  c.fillStyle="rgba(255,255,255,.12)";P.trail.forEach(t=>{c.beginPath();c.ellipse(t.x,t.y,3,1.8,0,0,6.3);c.fill()});
+  // interior floor
+  c.fillStyle="#232845";c.fillRect(20,30,550,480);
+  c.strokeStyle="#2d3358";c.lineWidth=1;for(let x=30;x<=550;x+=30){c.beginPath();c.moveTo(x,40);c.lineTo(x,500);c.stroke()}for(let y=40;y<=500;y+=30){c.beginPath();c.moveTo(30,y);c.lineTo(550,y);c.stroke()}
+  [[30,40,195,200,"#2a4a6a","Life support"],[231,40,164,200,"#5a4a30","Galley"],[401,40,149,200,"#3a3f7a","Science lab"],[30,300,195,200,"#4a3a5a","Gym"],[231,300,164,200,"#2f5a52","Comms"],[401,300,149,200,"#5a3a44","Med bay & bunks"]].forEach(r=>{c.fillStyle=r[4];c.globalAlpha=.28;c.fillRect(r[0],r[1],r[2],r[3]);c.globalAlpha=1;c.fillStyle="#9aa8d8";c.font="11px Audiowide,sans-serif";c.fillText(r[5],r[0]+8,r[1]+16)});
+  c.fillStyle="#3a4170";c.fillRect(38,254,512,32);c.fillStyle="#9aa8d8";c.font="10px Audiowide,sans-serif";c.fillText("CORRIDOR",250,276);
+  // walls
+  c.fillStyle="#6b78b8";SOL.forEach(s=>c.fillRect(s[0],s[1],s[2],s[3]));
+  c.fillStyle="#8a98d8";c.fillRect(20,30,550,10);c.fillRect(20,500,550,10);c.fillRect(20,30,10,480);
+  // airlock
+  c.fillStyle="#454d80";c.fillRect(550,252,56,36);c.fillStyle="#fbbf24";c.fillRect(552,250,4,40);c.fillRect(602,250,4,40);
+  c.fillStyle="#cbd5f5";c.font="10px Audiowide,sans-serif";c.fillText("AIRLOCK",552,248);
+  // outside objects
+  const sh=(x,y,rx,ry)=>{c.fillStyle="rgba(0,0,0,.3)";c.beginPath();c.ellipse(x+10,y+8,rx,ry,0,0,6.3);c.fill()};
+  [690,750,810].forEach(x=>{sh(x+24,90,28,34);c.fillStyle="#1f4fb8";c.fillRect(x,48,48,70);c.strokeStyle="#7aa7ff";c.lineWidth=1;for(let i=1;i<4;i++){c.beginPath();c.moveTo(x,48+i*17.5);c.lineTo(x+48,48+i*17.5);c.stroke()}c.beginPath();c.moveTo(x+24,48);c.lineTo(x+24,118);c.stroke();c.fillStyle="rgba(169,131,79,"+Math.min(.85,S.dust/115).toFixed(2)+")";c.fillRect(x,48,48,70)});
+  sh(700,330,32,22);c.fillStyle="#7a6f60";c.beginPath();c.ellipse(700,330,26+S.armor*5,20+S.armor*3,0,0,6.3);c.fill();c.fillStyle="#948772";for(let i=0;i<3+S.armor*3;i++){c.fillRect(682+(i*11)%36-S.armor*4,320+(i*7)%20,9,6)}
+  sh(830,330,24,18);c.fillStyle="#6b7390";c.fillRect(810,314,40,32);c.fillStyle="#9aa3bf";c.fillRect(814,318,32,6);c.strokeStyle="#cbd0e6";c.lineWidth=3;c.beginPath();c.moveTo(850,330);c.lineTo(868,318);c.stroke();
+  c.fillStyle="#5d6180";[[840,216,9],[858,226,7],[848,238,6],[866,212,5]].forEach(a=>{c.beginPath();c.arc(a[0],a[1],a[2],0,6.3);c.fill()});c.strokeStyle="#ddd";c.lineWidth=2;c.beginPath();c.moveTo(880,250);c.lineTo(880,224);c.stroke();c.fillStyle="#2563eb";c.fillRect(880,224,14,9);
+  sh(760,450,32,32);c.fillStyle="#cfd3e6";c.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4+Math.PI/8;c.lineTo(760+Math.cos(a)*30,450+Math.sin(a)*30)}c.fill();c.fillStyle="#d6a23a";c.beginPath();c.arc(760,450,16,0,6.3);c.fill();c.fillStyle="#60a5fa";c.beginPath();c.arc(760,450,7,0,6.3);c.fill();
+  c.strokeStyle="#cbd0e6";c.lineWidth=3;[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(a=>{c.beginPath();c.moveTo(760+a[0]*24,450+a[1]*24);c.lineTo(760+a[0]*36,450+a[1]*36);c.stroke()});
+  S.crates.forEach((i,k)=>{const x=690+k*24,y=495;c.fillStyle="#a8743a";c.fillRect(x,y,20,16);c.strokeStyle="#6f4a1e";c.strokeRect(x,y,20,16);c.fillStyle="#fbbf24";c.fillRect(x+8,y,4,16)});
+  // inside stations
+  for(const id in STN){const s=STN[id];
+    if(["solar","shelter","isru","field","pad","dustoff","rest"].includes(id)){
+      if(id==="rest"){c.fillStyle="#1e3a6a";c.fillRect(s.x-22,s.y-16,44,32);c.strokeStyle="#6b78b8";c.strokeRect(s.x-22,s.y-16,44,32)}
+      if(id==="dustoff"){c.fillStyle="#5a66a8";c.fillRect(s.x-10,s.y-14,20,28)}
+    }else{c.fillStyle="#394072";c.fillRect(s.x-23,s.y-18,46,36);c.strokeStyle="#6a77c0";c.lineWidth=2;c.strokeRect(s.x-23,s.y-18,46,36)}
+    c.font="22px sans-serif";c.textAlign="center";c.textBaseline="middle";c.fillStyle="#fff";c.fillText(s.icon,s.x,s.y+1);
+    c.font="10px Audiowide,sans-serif";c.fillStyle="#e8ecff";c.textBaseline="alphabetic";
+    const ly=["solar"].includes(id)?s.y+22:["pad"].includes(id)?s.y+48:s.y+32;c.fillText(s.label,s.x,ly);
+    const lc=lampCol(id);if(lc){c.fillStyle=lc;c.beginPath();c.arc(s.x+20,s.y-14,5,0,6.3);c.fill()}
+    c.textAlign="left"}
+  // near highlight
+  if(P.near){const s=STN[P.near];c.strokeStyle="#ffb347";c.lineWidth=2;c.globalAlpha=.6+.4*Math.sin(P.t*6);c.beginPath();c.arc(s.x,s.y,32,0,6.3);c.stroke();c.globalAlpha=1}
+  drawPlayer(c);
+  c.fillStyle="#e8ecff";c.font="11px Audiowide,sans-serif";c.fillText(P.x>=556?"🌑 SURFACE  (suit dust "+Math.round(S.suitDust)+"%)":"🏠 INSIDE HABITAT"+(S.cabinDust>0?"  (cabin dust "+Math.round(S.cabinDust)+"%)":""),8,22);
+}
+function drawPlayer(c){
+  const out=P.x>=556,bob=P.moving?Math.abs(Math.sin(P.t*9))*(out?4:3):0,x=P.x,y=P.y-bob,ang=Math.atan2(P.fy,P.fx);
+  c.fillStyle="rgba(0,0,0,.35)";c.beginPath();c.ellipse(x+6,P.y+7,11,5,0,0,6.3);c.fill();
+  if(out){c.fillStyle="#d6dae8";c.save();c.translate(x,y);c.rotate(ang+Math.PI);c.fillRect(2,-7,9,14);c.restore()}
+  c.fillStyle=out?"#f5f6fb":"#4aa8ff";c.beginPath();c.arc(x,y,out?11:9,0,6.3);c.fill();c.strokeStyle=out?"#aab":"#2b6fb0";c.lineWidth=1.5;c.stroke();
+  c.fillStyle=out?"#e5e7eb":"#f2d2b0";c.beginPath();c.arc(x+Math.cos(ang)*3,y+Math.sin(ang)*3,6,0,6.3);c.fill();
+  if(out){c.fillStyle="#1b2236";c.beginPath();c.ellipse(x+Math.cos(ang)*5,y+Math.sin(ang)*5,3.5,2.6,ang,0,6.3);c.fill()}
+}
+function renderBase(){return `<div class="play"><div class="stage"><canvas id="wc" width="900" height="540" aria-label="Outpost 7 map"></canvas><div id="pop" class="pop" hidden></div>
+  <div class="ctrl"><div class="dpad"><button id="dU" aria-label="up">▲</button><button id="dL" aria-label="left">◀</button><button id="dD" aria-label="down">▼</button><button id="dR" aria-label="right">▶</button></div><span class="small muted">WASD / arrows to walk · E to use · tap the map to walk</span><button id="useBtn" class="primary" onclick="useNear()">Walk to a station</button></div></div><aside class="side" id="side"></aside></div>`}
+function initWorld(){
+  const cv=$("#wc");
+  cv.addEventListener("pointerdown",e=>{if(POP)return;const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*900,y=(e.clientY-r.top)/r.height*540;
+    for(const id in STN){if(Math.hypot(STN[id].x-x,STN[id].y-y)<34){goStation(id);return}}
+    if(ok(x,y))walkTo(x,y)});
+  [["dU","u"],["dD","d"],["dL","l"],["dR","r"]].forEach(([id,k])=>{const b=$("#"+id);b.addEventListener("pointerdown",e=>{K[k]=true;e.preventDefault()});["pointerup","pointerleave","pointercancel"].forEach(ev=>b.addEventListener(ev,()=>K[k]=false))});
+  P.near=null;renderSide();updateUse();startLoop();
+}
+window.addEventListener("keydown",e=>{if(V!=="base")return;const k=e.key.toLowerCase();const m={arrowup:"u",w:"u",arrowdown:"d",s:"d",arrowleft:"l",a:"l",arrowright:"r",d:"r"}[k];
+  if(m){K[m]=true;e.preventDefault()}else if(k==="e"||k===" "||k==="enter"){if(!POP||k==="e"){useNear();e.preventDefault()}}else if(k==="escape")closePop()});
+window.addEventListener("keyup",e=>{const k=e.key.toLowerCase();const m={arrowup:"u",w:"u",arrowdown:"d",s:"d",arrowleft:"l",a:"l",arrowright:"r",d:"r"}[k];if(m)K[m]=false});
+/* ============ SIDEBAR ============ */
+function renderSide(){
+  const el=$("#side");if(!el)return;const free=MD().free;
+  const tabs=[["chores","🛠️ Survive"],["science","🔬 Science"],["supplies","📦 Supplies"],["base","🏠 Base"]];
   let body="";
-  if(TAB==="chores"){body=CH.map(c=>{const maxed=c.max&&S.armor>=c.max;return `<button class="opt" ${S.energy<c.e||maxed?"disabled":""} onclick="doChore('${c.id}')">${c.icon} ${esc(c.n)} <span class="small muted">(⚡${c.e}${Object.entries(c.fx).filter(([k])=>k!=="armor"&&k!=="dust").map(([k,v])=>" "+RIC[k]+(v>0?"+":"")+v).join("")}${c.id==="dust"?" 🌫️ clean":""}${c.id==="shelter"?" 🛡️+1":""})</span><span class="ctx">${esc(c.ctx)}</span></button>`}).join("")}
-  else if(TAB==="science"){body=`<p class="small muted">Science tasks use energy and power and earn Science Points. More unlock on days 3 and 5. Points depend on complexity, price and value.</p>`+ACT.map((a,i)=>{const dn=S.done[i],lock=unlockDay(a)>S.day,pc=Math.ceil(a[2]/4),dis=dn||lock||S.energy<a[1];return `<button class="opt" style="opacity:${dn?.55:1}" ${dis?"disabled":""} onclick="doSci(${i})"><b>${esc(a[0])}</b> <span class="tag">⚡${a[1]}</span><span class="tag">power -${pc}</span><span class="tag">value ${a[3]}</span><span class="tag good">+${actPts(a)} SP</span>${lock?`<span class="tag">unlocks day ${unlockDay(a)}</span>`:""}${dn?`<span class="ctx">${esc(a[5])}</span>`:""}</button>`}).join("")}
-  else{body=`<p class="small muted">Spend Science Points on Mission Control help. You have <b>${S.sp} SP</b>.</p>`+SUP.map((s,i)=>`<button class="opt" ${S.sp<s.cost&&!free?"disabled":""} onclick="buySup(${i})">${esc(s.n)} <span class="tag">${free?"free":s.cost+" SP"}</span><span class="ctx">${esc(s.ctx)}</span></button>`).join("")+`<button class="opt" ${S.energy<1?"disabled":""} onclick="startQuiz()">❓ Mission Control quiz <span class="tag">⚡1</span><span class="ctx">Answer questions to earn Science Points.</span></button>`}
-  return `<div class="card"><div class="row spread"><h2>🌑 Outpost 7 · Day ${S.day} of 7</h2><span class="chip">⚡ Energy ${S.energy}</span></div>${baseScene(false)}${resBars()}${tip()}</div>
-  <div class="card"><div class="row">${tabs.map(t=>`<button class="${TAB===t[0]?"primary":""}" onclick="TAB='${t[0]}';render()">${t[1]}</button>`).join("")}</div><div style="margin-top:8px">${body}</div></div>
-  <div class="card"><div class="row"><button class="primary" onclick="endDay()">🌙 End day → Night ${S.day}</button>${free?`<button onclick="S.res={o2:100,water:100,food:100,power:100,health:100,morale:100};S.dust=0;save();render()">🧪 Refill all</button>`:""}</div>${S.log.length?`<div class="log" style="margin-top:8px">${S.log.map(l=>`<p>${esc(l)}</p>`).join("")}</div>`:""}</div>`}
-function doChore(id){const c=CH.find(x=>x.id===id);if(S.energy<c.e)return;S.energy-=c.e;const t=applyFx(c.fx,0);log(c.icon+" "+c.n+(t?" → "+t:""));toast(c.fact);save();render()}
-function doSci(i){const a=ACT[i],pc=Math.ceil(a[2]/4);if(S.done[i]||S.energy<a[1])return;S.energy-=a[1];S.res.power=clamp(S.res.power-pc);S.res.morale=clamp(S.res.morale+2);S.done[i]=1;const pts=actPts(a);S.sp+=pts;log("🔬 "+a[0]+" → +"+pts+" SP");toast("+"+pts+" SP: "+a[5]);save();render()}
-function buySup(i){const s=SUP[i],free=MD().free;if(!free&&S.sp<s.cost)return;if(!free)S.sp-=s.cost;const t=applyFx(s.fx,0);log("📦 "+s.n+" → "+t);save();render()}
+  if(TAB==="chores")body=CH.map(c=>{const maxed=c.max&&S.armor>=c.max;const fx=Object.entries(c.fx).filter(([k])=>k!=="armor"&&k!=="dust").map(([k,v])=>RIC[k]+(v>0?"+":"")+v).join(" ");return `<button class="opt" ${S.energy<c.e||maxed?"disabled":""} onclick="goChore('${c.id}')">${c.icon} ${esc(c.n)} <span class="small muted">⚡${c.e} ${fx}${c.id==="dust"?" 🧹":""}${c.id==="shelter"?" 🛡️+1":""}</span><span class="ctx">${OUTCH[c.id]?"🌑 Outside · ":"🏠 Inside · "}${esc(c.ctx)}</span></button>`}).join("");
+  else if(TAB==="science")body=`<p class="small muted">Walk to the lab (inside) or field site (outside). Tasks use energy and power. Points depend on complexity, price and value. More unlock on days 3 and 5.</p>`+ACT.map((a,i)=>{const dn=S.done[i],lock=unlockDay(a)>S.day,pc=Math.ceil(a[2]/4),dis=dn||lock||S.energy<a[1];return `<button class="opt" style="opacity:${dn?.55:1}" ${dis?"disabled":""} onclick="goSci(${i})"><b>${esc(a[0])}</b> <span class="tag">${isOutSci(a)?"🌑 field":"🔬 lab"}</span><span class="tag">⚡${a[1]}</span><span class="tag">power -${pc}</span><span class="tag good">+${actPts(a)} SP</span>${lock?`<span class="tag">unlocks day ${unlockDay(a)}</span>`:""}${dn?`<span class="ctx">${esc(a[5])}</span>`:""}</button>`}).join("");
+  else if(TAB==="supplies")body=`<p class="small muted">Order a crate from Mission Control with Science Points. It lands on the pad outside. You have <b>${S.sp} SP</b>.</p>`+SUP.map((s,i)=>`<button class="opt" ${S.sp<s.cost&&!free?"disabled":""} onclick="buySup(${i})">${esc(s.n)} <span class="tag">${free?"free":s.cost+" SP"}</span><span class="ctx">${esc(s.ctx)}</span></button>`).join("")+(S.crates.length?`<p class="small"><b>Crates waiting on the pad:</b></p>`+S.crates.map((i,k)=>`<button class="opt" onclick="goCrate(${k})">📦 ${esc(SUP[i].n)} <span class="ctx">Walk to the landing pad and open it.</span></button>`).join(""):"")+`<button class="opt" ${S.energy<1?"disabled":""} onclick="goQuiz()">❓ Mission Control quiz <span class="tag">⚡1</span><span class="ctx">Walk to the comms console and answer questions for Science Points.</span></button>`;
+  else{const dr=MD().dr,gen=Math.round(36*(1-S.dust/100)),use=Math.round(8*dr);body=`<div class="small"><p><b>Tonight's forecast</b></p><p>☀️ Solar today: +${gen} power, base use −${use}. Panels ${S.dust}% dusty.</p><p>🌙 Night uses about 🫧 −${Math.round(7*dr)} 💧 −${Math.round(6*dr)} 🍲 −${Math.round(5*dr)} ⚡ −${Math.round(26*dr)}.</p><p>🛡️ Shelter armor: ${S.armor}/3 · 🧤 Suit dust: ${Math.round(S.suitDust)}% · Cabin dust: ${Math.round(S.cabinDust)}%</p><p>🌙 Nights survived: ${S.day-1} of 7 · ⭐ ${S.sp} SP</p><p class="muted">The Six Lost Outposts: dead by CO₂, dust storm, solar flare, meteorite, cold and despair. Do not be number seven.</p></div>`+(free?`<button class="sm" onclick="S.res={o2:100,water:100,food:100,power:100,health:100,morale:100};S.dust=0;S.cabinDust=0;save();refresh()">🧪 Refill all</button>`:"")+(S.log.length?`<div class="log" style="margin-top:8px">${S.log.map(l=>`<p>${esc(l)}</p>`).join("")}</div>`:"")}
+  el.innerHTML=`<div class="row spread"><b>🌑 Day ${S.day} of 7</b><span class="chip">⚡ Energy ${S.energy}</span></div><div class="grid2">${RES.map(r=>`<div>${barH(r[1]+" "+r[2],S.res[r[0]],100)}</div>`).join("")}</div>${tip()}<div class="row tabsrow">${tabs.map(t=>`<button class="sm ${TAB===t[0]?"primary":""}" onclick="TAB='${t[0]}';renderSide()">${t[1]}</button>`).join("")}</div><div class="sidelist">${body}</div><button class="primary" style="width:100%;margin-top:8px" onclick="goBed()">🛏️ Go to bed (end day)</button>`;
+}
+function doChore(id){const c=CH.find(x=>x.id===id);if(S.energy<c.e){toast("Not enough energy. Go to bed to end the day.");return}S.energy-=c.e;let t=applyFx(c.fx,0);if(OUTCH[id]){S.res.o2=clamp(S.res.o2-3);S.suitDust=clamp(S.suitDust+25);t+="  🫧 -3 (suit)"}log(c.icon+" "+c.n+(t?" → "+t:""));toast(c.fact);save();refresh()}
+function doSci(i){const a=ACT[i],pc=Math.ceil(a[2]/4);if(S.done[i]||S.energy<a[1])return;S.energy-=a[1];S.res.power=clamp(S.res.power-pc);S.res.morale=clamp(S.res.morale+2);if(isOutSci(a)){S.res.o2=clamp(S.res.o2-3);S.suitDust=clamp(S.suitDust+25)}S.done[i]=1;const pts=actPts(a);S.sp+=pts;log("🔬 "+a[0]+" → +"+pts+" SP");toast("+"+pts+" SP: "+a[5]);save();refresh()}
+function buySup(i){const s=SUP[i],free=MD().free;if(!free&&S.sp<s.cost)return;if(!free)S.sp-=s.cost;S.crates.push(i);log("📦 Ordered "+s.n+". It lands on the pad.");toast("A crate is landing at the pad outside!");save();refresh()}
+
 function endDay(){
+  P.path=[];P.pending=null;closePop();
   const dr=MD().dr,r=S.res,gen=Math.round(36*(1-S.dust/100)),use=Math.round(8*dr);
   r.o2-=Math.round(7*dr);r.water-=Math.round(6*dr);r.food-=Math.round(5*dr);r.power+=gen-use;r.health-=Math.round(2*dr);r.morale-=2;
   log("☀️ Day "+S.day+" ends: solar gave +"+gen+" power ("+S.dust+"% dust) minus "+use+" used.");
@@ -381,6 +553,7 @@ function resolveNight(){
   r.o2-=d.o2;r.water-=d.water;r.food-=d.food;r.power-=d.power;r.morale-=3;
   L.push(`Night uses: 🫧 -${d.o2}  💧 -${d.water}  🍲 -${d.food}  ⚡ -${d.power} (heaters)  🙂 -3`);
   let cause=null;
+  if(S.cabinDust>0){const h=Math.round(S.cabinDust/15*m.sev);if(h>0){r.health-=h;L.push('🧤 Moon dust inside the cabin irritated your lungs: health -'+h)}S.cabinDust=0}
   if(r.power<0){r.power=0;r.health-=30;L.push("❄️ Power ran out and the heaters switched off. The habitat froze: health -30.");cause="power"}
   if(r.water<=0){r.water=0;r.health-=25;L.push("🏜️ Out of water: health -25.");cause="water"}
   if(r.food<=0){r.food=0;r.health-=15;L.push("🍽️ Out of food: health -15.");cause="food"}
@@ -393,7 +566,7 @@ function resolveNight(){
     else{S.day++;const lowM=r.morale<25?1:0;S.energy=Math.max(2,m.en-S.penalty-lowM);if(lowM)L.push("😞 Low morale: 1 less energy tomorrow.");if(S.penalty)L.push("🔧 Repairs from the event: -"+S.penalty+" energy tomorrow.");S.penalty=0}}
   S.report=L;log("🌙 Night "+(S.over&&!S.over.win?S.day:S.day-(S.over?0:1))+" complete.")}
 function renderNight(){
-  return `<div class="card"><h2>🌙 Night ${S.day-1} report</h2>${baseScene(true)}<div class="log" style="max-height:none">${S.report.map(l=>`<p>${esc(l)}</p>`).join("")}</div></div><div class="card">${resBars()}<button class="primary" onclick="S.phase='day';save();go('base')">☀️ Start Day ${S.day} →</button></div>`}
+  return `<div class="card"><h2>🌙 Night ${S.day-1} report</h2>${baseScene(true)}<div class="log" style="max-height:none">${S.report.map(l=>`<p>${esc(l)}</p>`).join("")}</div></div><div class="card">${resBars()}<button class="primary" onclick="startDay()">☀️ Start Day ${S.day} →</button></div>`}
 function renderEnd(){
   const o=S.over,evs=[...new Set(S.evLog)].map(id=>EV.find(e=>e.id===id)),cards=evs.map(e=>`<div class="debrief"><b>${e.icon} ${esc(e.real[0])}</b><br>${esc(e.real[1])}</div>`).join("");
   if(o.win)return `<div class="card"><h2>🏅 You survived 7 nights!</h2><p class="good">You are the first crew to outlast the Six Lost Outposts.</p>${baseScene(false)}<p>Outpost 7 is still running. Oxygen ${S.res.o2}, water ${S.res.water}, food ${S.res.food}, power ${S.res.power}, health ${S.res.health}, morale ${S.res.morale}.</p><p class="good"><b>Science Points: ${S.sp}</b> (includes +50 for surviving)</p><h3>The real missions behind your nights</h3>${cards||"<p class='muted'>No events recorded.</p>"}<div class="row" style="margin-top:10px"><button class="primary" onclick="go('modes')">Play again</button><button onclick="go('home')">Home</button></div></div>`;
@@ -489,9 +662,9 @@ function renderHome(){
 /* ============ RENDER ============ */
 function chips(){$("#chips").innerHTML=S.mode?`<span class="chip">${MD().icon} ${MD().n}</span><span class="chip">🌙 Night ${Math.min(S.day,7)}/7</span><span class="chip">⭐ ${S.sp} SP</span>`:""}
 function render(){
-  chips();stopLanding();document.body.classList.toggle("home",V==="home");
+  chips();stopLanding();stopLoop();document.body.classList.toggle("home",V==="home");document.body.classList.toggle("wide",V==="base");
   const f={home:renderHome,modes,lore:renderLore,landing:renderLanding,base:renderBase,event:renderEvent,night:renderNight,end:renderEnd,quiz:renderQuiz}[V];
-  $("#app").innerHTML=f();if(V==="landing")initLanding();
+  $("#app").innerHTML=f();if(V==="landing")initLanding();if(V==="base")initWorld();
 }
 V="home";render();
 
