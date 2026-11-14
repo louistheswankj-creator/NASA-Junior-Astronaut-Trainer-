@@ -46,6 +46,10 @@ select{font:inherit;background:var(--panel2);color:var(--text);border:1px solid 
 .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--accent);color:#1b1200;font-weight:700;padding:8px 18px;border-radius:999px;z-index:9;box-shadow:0 4px 20px #0008}
 .tag{display:inline-block;font-size:.72rem;border:1px solid var(--line);border-radius:6px;padding:0 6px;margin-right:4px;color:var(--muted)}
 table{width:100%;border-collapse:collapse}td,th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left;font-size:.9rem}
+.scene{width:100%;height:auto;border-radius:12px;border:1px solid var(--line);display:block;margin:8px 0}
+.streak{animation:drift 1.3s linear infinite}
+@keyframes drift{from{transform:translateX(-80px)}to{transform:translateX(880px)}}
+@media(prefers-reduced-motion:reduce){.streak{animation:none}}
 @media(max-width:600px){main{padding:10px}.stages div{font-size:.7rem}}
 </style>
 </head>
@@ -236,6 +240,97 @@ function checkUnlocks(){for(const k in ROVERS){const r=ROVERS[k];if(r.unlock>0&&
 function grantIfBroke(){if(S.budget<40){S.budget+=60;toast("Mission Control approves a $60M recovery grant. Try a different design!")}}
 function go(v){V=v;render();window.scrollTo(0,0)}
 
+/* ============ VISUALS ============ */
+const SCOL={anorthosite:"#dfe2ee",basalt:"#3b3b4c",breccia:"#8d7058",regolith:"#a39c8c","volcanic basalt":"#5d3a36","sedimentary rock":"#b9794f",meteorite:"#6a7180","clay mudstone":"#cb9270"};
+function rockG(t,got){
+  const c=SCOL[t]||"#888";
+  let o=got?`<polygon points="4,32 10,14 24,6 40,12 45,32" fill="${c}" stroke="#fff" stroke-opacity=".35"/>`:`<polygon points="4,32 10,14 24,6 40,12 45,32" fill="none" stroke="#9aa8d8" stroke-opacity=".6" stroke-dasharray="3 3"/><text x="24" y="26" text-anchor="middle" font-size="14" style="fill:var(--muted)">?</text>`;
+  if(got){
+    if(t==="breccia")o+=`<circle cx="16" cy="22" r="2.5" fill="#d9c6b0"/><circle cx="28" cy="18" r="3" fill="#5b4636"/><circle cx="34" cy="26" r="2" fill="#d9c6b0"/>`;
+    if(t==="sedimentary rock")o+=`<path d="M8,22H43M7,27H44" stroke="#7a4b2e" stroke-width="2"/>`;
+    if(t==="meteorite")o+=`<path d="M14,14 L30,10" stroke="#c9d1e6" stroke-width="2" opacity=".7"/>`;
+    if(t==="anorthosite")o+=`<path d="M12,22 L22,12" stroke="#fff" stroke-width="2" opacity=".6"/>`;
+    if(t==="regolith")o+=`<circle cx="14" cy="26" r="1.5" fill="#6d675b"/><circle cx="26" cy="22" r="1.5" fill="#6d675b"/><circle cx="36" cy="27" r="1.5" fill="#6d675b"/>`;
+  }
+  return o}
+function rocksRow(wk){const store=S.samples[wk];return `<p class="small muted">${WORLDS[wk].n}: ${Object.keys(store).length}/4</p><div class="row">`+WORLDS[wk].types.map(t=>`<div style="text-align:center"><svg viewBox="0 0 48 36" width="54" height="40" aria-hidden="true">${rockG(t,!!store[t])}</svg><div class="small">${store[t]?esc(t):"???"}</div></div>`).join("")+`</div>`}
+function starsSVG(n,w,h,seed){let x=seed,o="";for(let i=0;i<n;i++){x=(x*9301+49297)%233280;const a=x/233280;x=(x*9301+49297)%233280;const b=x/233280;o+=`<circle cx="${(a*w).toFixed(0)}" cy="${(b*h*.65).toFixed(0)}" r="${(.4+b).toFixed(1)}" fill="#fff" opacity="${(.3+a*.6).toFixed(2)}"/>`}return o}
+function skyGround(W,H,gy,mars,id){
+  const sk=mars?["#241426","#7a4538"]:["#02040f","#18245a"],g1=mars?"#7d3f30":"#5c6082",g2=mars?"#4a261e":"#363a5c",g3=mars?"#9a5440":"#7a7fa3";
+  let o=`<defs><linearGradient id="${id}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sk[0]}"/><stop offset="1" stop-color="${sk[1]}"/></linearGradient><radialGradient id="${id}e" cx=".35" cy=".35"><stop offset="0" stop-color="#9fd0ff"/><stop offset="1" stop-color="#1e4fa8"/></radialGradient></defs>`;
+  o+=`<rect width="${W}" height="${H}" fill="url(#${id}s)"/>`+starsSVG(70,W,H,mars?7:3);
+  if(!mars)o+=`<circle cx="${W-90}" cy="55" r="26" fill="url(#${id}e)"/><path d="M${W-104},48 q10,-8 16,2 q-6,10 -16,-2z M${W-92},66 q10,-4 14,4 q-8,6 -14,-4z" fill="#4ade80" opacity=".7"/>`;
+  else o+=`<circle cx="${W-120}" cy="50" r="5" fill="#cbb7a0"/><circle cx="${W-90}" cy="70" r="3" fill="#cbb7a0"/>`;
+  o+=`<path d="M0,${gy-30} Q120,${gy-70} 260,${gy-25} T520,${gy-35} T${W},${gy-30} V${H} H0Z" fill="${g2}"/>`;
+  o+=`<rect x="0" y="${gy}" width="${W}" height="${H-gy}" fill="${g1}"/><path d="M0,${gy} H${W}" stroke="${g3}" stroke-width="2"/>`;
+  for(let i=0;i<7;i++){const cx=(i*137+60)%W,cy=gy+14+(i%3)*12;o+=`<ellipse cx="${cx}" cy="${cy}" rx="${22+i%3*8}" ry="${5+i%3*2}" fill="#000" opacity=".18"/>`}
+  return o}
+function roverSVG(o){
+  const dust=o.dust||0,wh=o.wheel===undefined?100:o.wheel;let s="";
+  if(o.crew){
+    s+=`<rect x="-26" y="-14" width="52" height="5" fill="#9aa3bf"/><rect x="-14" y="-22" width="9" height="9" fill="#c9cde0"/><rect x="6" y="-22" width="9" height="9" fill="#c9cde0"/>`;
+    [-9,11].forEach(x=>{s+=`<circle cx="${x}" cy="-34" r="4.5" fill="#fff" stroke="#9aa3bf"/><rect x="${x-4}" y="-30" width="8" height="10" rx="2" fill="#f1f3fb"/>`});
+    s+=`<path d="M22,-14 L30,-34" stroke="#cbd0e6" stroke-width="1.5"/><path d="M24,-40 Q32,-46 40,-38 Z" fill="#e5e7eb"/>`;
+    [-20,20].forEach(x=>{s+=`<circle cx="${x}" cy="-6" r="7" fill="#222" stroke="#aab" stroke-width="2"/>`});
+    return s}
+  s+=`<rect x="-22" y="-24" width="44" height="13" rx="3" fill="#cfd3e6"/>`;
+  if(o.power==="nuclear")s+=`<rect x="14" y="-34" width="12" height="12" rx="2" fill="#7b8294"/><path d="M12,-30 h2 M12,-26 h2 M26,-30 h2 M26,-26 h2" stroke="#d6dae8" stroke-width="1.5"/><circle cx="20" cy="-28" r="2" fill="#fbbf24"/>`;
+  else s+=`<path d="M-30,-27 L-14,-32 L30,-32 L30,-27 Z" fill="#2563eb"/><path d="M-30,-27 L-14,-32 L30,-32 L30,-27 Z" fill="#a9834f" opacity="${Math.min(.9,dust/110).toFixed(2)}"/><path d="M-14,-32 V-27 M0,-32 V-27 M14,-32 V-27" stroke="#93c5fd" stroke-width=".8"/>`;
+  s+=`<path d="M-10,-24 V-40" stroke="#cbd0e6" stroke-width="2"/><rect x="-14" y="-45" width="9" height="6" fill="#e5e7eb"/><circle cx="-12" cy="-42" r="1.5" fill="#222"/>`;
+  if(o.tools)s+=`<path d="M22,-17 L34,-22 L38,-14" stroke="#cbd0e6" stroke-width="2" fill="none"/><circle cx="38" cy="-13" r="2.5" fill="#fbbf24"/>`;
+  for(let i=0;i<6;i++){const x=-20+i*8,bad=wh<60&&i<2;s+=`<circle cx="${x}" cy="-5" r="5" fill="#1b1f33" stroke="${wh<=0?"#f87171":bad?"#fb923c":"#9aa3bf"}" stroke-width="1.5"/>`}
+  return s}
+function landerSVG(){return `<path d="M-20,-6 L-34,0 M20,-6 L34,0" stroke="#cbd0e6" stroke-width="2.5"/><path d="M-16,-34 L16,-34 L22,-12 L-22,-12Z" fill="#e5e7eb"/><rect x="-22" y="-12" width="44" height="8" fill="#d6a23a"/><circle cx="0" cy="-24" r="5" fill="#60a5fa"/><path d="M-6,-4 L-9,2 H9 L6,-4Z" fill="#555"/>`}
+function habSVG(){return `<path d="M-40,0 A40,40 0 0 1 40,0Z" fill="#aab4d0"/><rect x="40" y="-22" width="26" height="22" fill="#8d96a3"/><circle cx="0" cy="-18" r="5" fill="#60a5fa"/><path d="M0,-40 V-58 M-8,-52 H8" stroke="#cbd0e6" stroke-width="2"/><rect x="74" y="-40" width="20" height="40" rx="7" fill="#aab4d0"/><rect x="77" y="-18" width="14" height="16" rx="3" fill="#4aa8ff"/>`}
+function hubScene(){
+  const W=800,H=190,gy=150,st=S.stage;
+  let o=`<svg viewBox="0 0 ${W} ${H}" class="scene" role="img" aria-label="Your lunar outpost so far">`+skyGround(W,H,gy,false,"h");
+  o+=`<g transform="translate(130,${gy}) scale(1.2)">${roverSVG({power:"solar",tools:true})}</g>`;
+  WORLDS.moon.types.forEach((t,i)=>{o+=`<g transform="translate(${215+i*42},${gy-26}) scale(.8)">${rockG(t,!!S.samples.moon[t])}</g>`});
+  if(st>=2)o+=`<g transform="translate(450,${gy})">${landerSVG()}</g><path d="M520,${gy} V${gy-42}" stroke="#ddd" stroke-width="2"/><rect x="520" y="${gy-42}" width="24" height="15" fill="#2563eb"/>`;
+  if(st>=4)o+=`<g transform="translate(630,${gy})">${habSVG()}</g>`;
+  else if(st===3)o+=`<g transform="translate(630,${gy})" opacity=".6" fill="none" stroke="#9aa8d8" stroke-dasharray="5 4"><path d="M-40,0 A40,40 0 0 1 40,0Z"/><rect x="40" y="-22" width="26" height="22"/></g>`;
+  return o+`</svg>`}
+function missionScene(){
+  const W=800,H=260,gy=205,mars=M.wk==="mars",X=p=>40+p/5.6*700;
+  let o=`<svg viewBox="0 0 ${W} ${H}" class="scene" role="img" aria-label="Rover on ${M.W.n}">`+skyGround(W,H,gy,mars,"m");
+  o+=`<circle cx="70" cy="50" r="${M.storm>0?10:16}" fill="#ffd166" opacity="${M.storm>0?.4:.95}"/>`;
+  o+=`<g transform="translate(24,${gy})"><path d="M-22,0 A22,22 0 0 1 22,0Z" fill="#aab4d0"/><text y="20" text-anchor="middle" font-size="12" style="fill:var(--text)">Base</text></g>`;
+  M.W.sites.forEach(s=>{const x=X(s.pos),got=M.used["c"+s.id];
+    o+=`<g transform="translate(${x-24},${gy-28})">${rockG(s.sample,true)}</g>`;
+    o+=`<text x="${x}" y="${gy+22}" text-anchor="middle" font-size="13" style="fill:var(--text)">${esc(s.n)}</text><text x="${x}" y="${gy+37}" text-anchor="middle" font-size="11" style="fill:var(--muted)">${esc(s.sample)}</text>`;
+    if(got)o+=`<circle cx="${x}" cy="${gy-44}" r="8" fill="#22c55e"/><path d="M${x-4},${gy-44} l3,4 l6,-8" stroke="#fff" stroke-width="2" fill="none"/>`});
+  o+=`<g id="rv" opacity="${M.over&&M.ev.dead?.45:1}"><g transform="scale(1.35)">${roverSVG({crew:M.crewed,power:M.opts.power,tools:M.opts.tools==="full",dust:M.dust,wheel:M.wheel})}</g></g>`;
+  if(M.storm>0){o+=`<rect width="${W}" height="${H}" fill="#b9824a" opacity=".3"/>`;for(let i=0;i<14;i++)o+=`<line class="streak" x1="0" y1="${30+i*14}" x2="60" y2="${30+i*14}" stroke="#e3b27a" stroke-width="2" opacity=".6" style="animation-delay:${(-i*.17).toFixed(2)}s"/>`;o+=`<text x="${W/2}" y="30" text-anchor="middle" font-size="18" font-weight="700" style="fill:#fff">Dust storm!</text>`}
+  if(M.over&&M.ev.dead)o+=`<text x="${W/2}" y="60" text-anchor="middle" font-size="18" font-weight="700" fill="#f87171">Signal lost</text>`;
+  return o+`</svg>`}
+function animRover(){
+  const g=document.getElementById("rv");if(!g||!M)return;const gy=205,X=p=>40+p/5.6*700,cur=X(M.pos),prev=M.px===undefined?cur:M.px;
+  g.style.transition="none";g.style.transform=`translate(${prev}px,${gy}px)`;g.getBoundingClientRect();
+  g.style.transition="transform .9s ease-in-out";g.style.transform=`translate(${cur}px,${gy}px)`;M.px=cur}
+const MATCOL={alu:"#aab4d0",ti:"#8b909c",steel:"#7e8794",honey:"#dcb685",carbon:"#2f323d"};
+function outpostScene(){
+  const gy=190,W=800,H=240,res=OD.tested?OD.res:null,site=SITES[S.site||"mare"];
+  let o=`<svg viewBox="0 0 ${W} ${H}" class="scene" role="img" aria-label="Your outpost design">`+skyGround(W,H,gy,false,"o");
+  o+=`<text x="16" y="26" font-size="15" style="fill:var(--text)">${esc(site.n)}</text>`;
+  const pos={home:130,water:270,wc:350,lab:480,pad:670},dims={home:[60,50],water:[26,54],wc:[22,34],lab:[54,40],pad:[66,12]},nm={home:"Home",water:"Water",wc:"Toilets",lab:"Lab",pad:"Pad"};
+  MODS.forEach((m,i)=>{
+    const d=OD.mods[m.id],[w,h]=dims[m.id],col=MATCOL[d.mat],kap=d.ins==="kapton";
+    let b="";
+    if(m.id==="home")b=`<path d="M-48,0 A48,48 0 0 1 48,0Z"/><rect x="48" y="-26" width="26" height="26"/><circle cx="0" cy="-24" r="6" fill="#60a5fa" stroke="none"/><path d="M0,-48 V-66 M-8,-60 H8" stroke="#cbd0e6" fill="none"/>`;
+    if(m.id==="water")b=`<rect x="-24" y="-52" width="48" height="52" rx="8"/><rect x="-20" y="-24" width="40" height="22" rx="4" fill="#4aa8ff" stroke="none"/>`;
+    if(m.id==="wc")b=`<rect x="-20" y="-32" width="40" height="32"/><rect x="-6" y="-20" width="12" height="20" fill="#1b1f33" stroke="none"/>`;
+    if(m.id==="lab")b=`<path d="M-52,0 V-30 L-40,-40 H40 L52,-30 V0Z"/><rect x="-18" y="-24" width="36" height="24" fill="#1b1f33" stroke="none"/>`;
+    if(m.id==="pad")b=`<ellipse cx="0" cy="-4" rx="64" ry="9"/><text y="0" text-anchor="middle" font-size="12" fill="#fff" stroke="none">H</text>`;
+    o+=`<g transform="translate(${pos[m.id]},${gy})"><g fill="${col}" stroke="${kap?"#f2b632":"#fff"}" stroke-opacity="${kap?1:.35}" stroke-width="${kap?3.5:1}">${b}</g>`;
+    if(d.reg)o+=`<path d="M${-w-8},0 Q${-w*.6},${-h*1.15} 0,${-h*1.2} Q${w*.6},${-h*1.15} ${w+8},0Z" fill="#8a7a62" opacity=".78"/><circle cx="${-w*.3}" cy="${-h*.4}" r="2" fill="#5d5242"/><circle cx="${w*.25}" cy="${-h*.55}" r="2" fill="#5d5242"/>`;
+    o+=`<text y="18" text-anchor="middle" font-size="12" style="fill:var(--text)">${nm[m.id]}</text>`;
+    if(res){const r=res[i];
+      if(r.ok)o+=`<circle cy="${-h-26}" r="10" fill="#22c55e"/><path d="M-5,${-h-26} l4,5 l7,-9" stroke="#fff" stroke-width="2.5" fill="none"/>`;
+      else o+=`<circle cy="${-h-26}" r="10" fill="#ef4444"/><path d="M-4,${-h-30} l8,8 M4,${-h-30} l-8,8" stroke="#fff" stroke-width="2.5"/><path d="M-6,0 L2,${-h*.4} L-4,${-h*.7} L4,${-h}" stroke="#ef4444" stroke-width="2.5" fill="none"/>`}
+    o+=`</g>`});
+  return o+`</svg><p class="small muted">Gold outline = full Kapton and Mylar insulation. Brown mound = regolith cover. Colour shows the structure material.</p>`}
+
 /* ============ RENDER ============ */
 function chips(){
   $("#chips").innerHTML=
@@ -245,7 +340,7 @@ function chips(){
 }
 function render(){chips();stopLanding();
   const f={modes,hub,brief:renderBrief,mission:renderMission,debrief:renderDebrief,lab,quiz:renderQuiz,codex,landing:renderLanding,crew,choice,outpost:renderOutpost}[V];
-  $("#app").innerHTML=f();if(V==="landing")initLanding();
+  $("#app").innerHTML=f();if(V==="landing")initLanding();if(V==="mission")animRover();
 }
 function stageBar(){
   const st=S.stage,n=["1 · Scout (rovers)","2 · Land (humans)","3 · Build (outpost)"];
@@ -279,14 +374,14 @@ function hub(){
   else mission='<button class="primary" onclick="startBrief(\'mars\')">🔴 Mars training (bonus world)</button>';
   if(MD().free&&st<4)mission+=' <button onclick="startBrief(\'mars\')">🔴 Try Mars</button>';
   const moon=Object.keys(S.samples.moon),mars=Object.keys(S.samples.mars);
-  return '<div class="card"><h2>Mission Control</h2>'+stageBar()+
+  return '<div class="card"><h2>Mission Control</h2>'+hubScene()+stageBar()+
    '<p class="muted">'+({1:"Scout the Moon with rovers. Collect and send back all 4 Moon sample types to unlock human landings.",
      2:"Prove a reliable landing system until your reliability reaches "+MD().rel+"%, then launch a crew with the Apollo-style rover.",
      3:"Build a working outpost. Pick materials that trade weight, strength and cost, then survive a stress test.",
      4:"Moon outpost working! Try the harder Mars world with a 1-sol command delay."})[st>3?4:st]+'</p>'+
    '<div class="row">'+mission+'</div></div>'+
    '<div class="grid">'+
-   '<div class="card"><h3>🧪 Samples</h3><p class="small">Moon: '+(moon.length?moon.map(esc).join(", "):"none yet")+' ('+moon.length+'/4)</p>'+(mars.length?'<p class="small">Mars: '+mars.map(esc).join(", ")+' ('+mars.length+'/4)</p>':"")+'</div>'+
+   '<div class="card"><h3>🧪 Samples</h3>'+rocksRow("moon")+(mars.length?rocksRow("mars"):"")+'</div>'+
    '<div class="card"><h3>⭐ Earn Science Points</h3><div class="row">'+(MD().lab?'<button onclick="go(\'lab\')">🧑‍🚀 Survival Lab</button>':'')+'<button onclick="startQuiz()">❓ Quiz</button></div><p class="small muted">Points depend on complexity, price and value of the task. Each point also brings in funding.</p></div>'+
    '<div class="card"><h3>📖 Rover catalog</h3><button onclick="go(\'codex\')">Open catalog</button></div>'+
    '<div class="card"><h3>⚙️ Simulation</h3><p class="small">Mode: <b>'+MD().icon+' '+MD().n+'</b> <span class="muted">'+MD().tag+'</span></p><button class="sm" onclick="go(\'modes\')">🔄 New simulation / change mode</button>'+(MD().free?'<p class="small muted" style="margin-top:8px">Free Play: jump to a stage</p><div class="row"><button class="sm" onclick="jump(1)">Stage 1</button><button class="sm" onclick="jump(2)">Stage 2</button><button class="sm" onclick="jump(3)">Stage 3</button><button class="sm" onclick="jump(4)">Mars</button></div>':'')+'</div>'+
@@ -375,7 +470,7 @@ function renderMission(){
   return '<div class="card"><div class="row spread"><h2>'+W.icon+' '+(M.crewed?"Crewed LRV mission":M.R.n+" mission")+'</h2><span class="chip">Step '+(M.total-M.steps)+'/'+M.total+'</span></div>'+
    '<div class="grid"><div>'+(M.opts.power==="battery"?barH("Battery",M.power,100):barH("⚡ Power",M.power,100))+'</div>'+(M.crewed?"":'<div>'+barH("🛞 Wheels",M.wheel,100)+'</div>')+(solar?'<div>'+barH("🌫️ Dust on panels",100-M.dust,100)+'</div>':'')+'</div>'+
    '<p class="small">'+(M.storm>0?'<b class="bad">🌪️ Dust storm! ('+M.storm+' steps left)</b> ':'☀️ Clear skies. ')+'Carrying: '+(M.carried.length?M.carried.join(", "):"nothing")+' · Sent: '+(M.sent.length?M.sent.join(", "):"nothing")+'</p>'+
-   '<div class="map">'+pts+'<div class="rv" style="left:'+rvx+'%">'+(M.crewed?"🏎️":M.R.icon)+'</div></div>'+
+   missionScene()+
    '<div class="row">'+sitesBtn+'</div><div class="row" style="margin-top:8px">'+
    btn({t:"collect"},"⛏️ Collect sample",dis)+btn({t:"transmit"},M.crewed?"📦 Pack & send return":"📡 Transmit",dis)+btn({t:"charge"},"🔋 Charge / wait",dis)+
    (solar&&M.opts.dust==="shield"?btn({t:"clean"},"⚡ Clean panels",dis):"")+(M.opts.tools==="full"?btn({t:"instr"},"🔬 Instrument",dis):"")+
@@ -566,14 +661,27 @@ function newLanding(){
   })(last);
 }
 function drawLanding(me){
-  const c=me.c.getContext("2d"),L=me.L;c.fillStyle="#02040f";c.fillRect(0,0,700,420);
-  c.fillStyle="#fff";for(let i=0;i<40;i++)c.fillRect((i*97)%700,(i*53)%200,1.5,1.5);
-  c.fillStyle="#3b3f5c";c.beginPath();c.moveTo(0,420);me.terr.forEach(p=>c.lineTo(p[0],p[1]));c.lineTo(700,420);c.fill();
+  const c=me.c.getContext("2d"),L=me.L;
+  let g=c.createLinearGradient(0,0,0,420);g.addColorStop(0,"#02040f");g.addColorStop(1,"#18245a");c.fillStyle=g;c.fillRect(0,0,700,420);
+  c.fillStyle="#fff";for(let i=0;i<70;i++){c.globalAlpha=.3+(i%5)*.14;c.fillRect((i*97)%700,(i*53)%240,1.5,1.5)}c.globalAlpha=1;
+  g=c.createRadialGradient(612,60,2,620,66,26);g.addColorStop(0,"#9fd0ff");g.addColorStop(1,"#1e4fa8");c.fillStyle=g;c.beginPath();c.arc(620,66,26,0,6.3);c.fill();
+  g=c.createLinearGradient(0,330,0,420);g.addColorStop(0,"#7a7fa3");g.addColorStop(1,"#363a5c");c.fillStyle=g;
+  c.beginPath();c.moveTo(0,420);me.terr.forEach(p=>c.lineTo(p[0],p[1]));c.lineTo(700,420);c.fill();
+  c.strokeStyle="#a9aed0";c.lineWidth=2;c.beginPath();me.terr.forEach((p,i)=>i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]));c.stroke();
+  c.fillStyle="rgba(0,0,0,.2)";for(let i=0;i<6;i++){const x=(i*131+40)%700;if(Math.abs(x-me.pad)>me.pw/2+30){c.beginPath();c.ellipse(x,me.ground(x)+16+i*4,18+i*3,4+i%3,0,0,6.3);c.fill()}}
   c.fillStyle="#4ade80";c.fillRect(me.pad-me.pw/2,353,me.pw,5);
-  c.fillStyle="#9aa8d8";c.font="12px 'Times New Roman',serif";c.fillText("PAD",me.pad-10,375);
+  c.fillStyle=(Math.floor(Date.now()/400)%2)?"#fde047":"#a16207";c.fillRect(me.pad-me.pw/2-3,349,4,9);c.fillRect(me.pad+me.pw/2-1,349,4,9);
+  c.fillStyle="#cbd5f5";c.font="12px 'Times New Roman',serif";c.fillText("PAD",me.pad-10,375);
   if(me.dust>4){c.fillStyle="rgba(200,200,200,.25)";c.beginPath();c.arc(L.x,me.ground(L.x)-6,me.dust*1.5,0,6.3);c.fill()}
-  c.fillStyle="#e5e7eb";c.fillRect(L.x-10,L.y-10,20,16);c.fillStyle="#fbbf24";c.fillRect(L.x-14,L.y+6,6,6);c.fillRect(L.x+8,L.y+6,6,6);
-  if(KEY.u&&L.fuel>0&&me.state==="flying"){c.fillStyle="#fb923c";c.beginPath();c.moveTo(L.x-5,L.y+6);c.lineTo(L.x,L.y+22);c.lineTo(L.x+5,L.y+6);c.fill()}
+  c.save();c.translate(L.x,L.y);
+  const fire=me.state==="flying"&&L.fuel>0;
+  if(fire&&KEY.u){c.fillStyle="#fb923c";c.beginPath();c.moveTo(-5,6);c.lineTo(0,18+Math.random()*10);c.lineTo(5,6);c.fill();c.fillStyle="#fde047";c.beginPath();c.moveTo(-2.5,6);c.lineTo(0,13+Math.random()*5);c.lineTo(2.5,6);c.fill()}
+  if(fire&&KEY.l){c.fillStyle="#fb923c";c.fillRect(11,-3,8+Math.random()*6,3)}
+  if(fire&&KEY.r){c.fillStyle="#fb923c";c.fillRect(-19-Math.random()*6,-3,8+Math.random()*6,3)}
+  c.strokeStyle="#cbd0e6";c.lineWidth=2;c.beginPath();c.moveTo(-9,6);c.lineTo(-16,12);c.moveTo(9,6);c.lineTo(16,12);c.stroke();
+  c.fillStyle="#e5e7eb";c.beginPath();c.moveTo(-8,-12);c.lineTo(8,-12);c.lineTo(12,2);c.lineTo(-12,2);c.fill();
+  c.fillStyle="#d6a23a";c.fillRect(-12,2,24,5);c.fillStyle="#60a5fa";c.beginPath();c.arc(0,-6,3.5,0,6.3);c.fill();
+  c.restore();
   c.fillStyle="#eaf0ff";c.font="13px 'Times New Roman',serif";
   c.fillText("Vertical "+(L.vy/10).toFixed(1)+" m/s   Sideways "+(L.vx/10).toFixed(1)+" m/s   Fuel "+Math.max(0,Math.round(L.fuel))+"%",10,18);
 }
@@ -644,7 +752,7 @@ function renderOutpost(){
    (ev?'<p class="small '+(ev[i].ok?'good':'bad')+'">'+(ev[i].ok?'✅ Stayed working through the stress test.':'❌ '+esc(ev[i].probs.join(" ")))+'</p>':'')+'</div>'}).join("");
   return '<div class="card"><div class="row spread"><h2>🏗️ Outpost at '+site.icon+' '+site.n+'</h2><button onclick="go(\'hub\')">← Back</button></div>'+
    '<p class="muted">Choose materials for each module. Ships carry 30 kg each, and every shipment costs $18M. The win condition is an outpost whose systems <b>keep working</b>, not the biggest one.</p>'+
-   (site.ice?'<p class="small good">Ice nearby: the water tank costs half the weight and money.</p>':'')+(S.printer?'<p class="small good">Your printing rover is already on the Moon, so regolith covers cost almost nothing.</p>':'<p class="small muted">Regolith covers need a printing rover (+$12M and 8 kg shipped, once).</p>')+'</div>'+rows+
+   (site.ice?'<p class="small good">Ice nearby: the water tank costs half the weight and money.</p>':'')+(S.printer?'<p class="small good">Your printing rover is already on the Moon, so regolith covers cost almost nothing.</p>':'<p class="small muted">Regolith covers need a printing rover (+$12M and 8 kg shipped, once).</p>')+'</div>'+outpostScene()+rows+
    '<div class="card"><div class="row spread"><div><b>Total weight: '+t.mass+' kg → '+t.ships+' shipment'+(t.ships>1?'s':'')+'</b><br><b>Total cost: $'+t.cost+'M</b> (budget $'+Math.round(S.budget)+'M)</div>'+
    '<button class="primary" '+(broke?'disabled':'')+' onclick="buildOutpost()">🚀 Ship &amp; run stress test</button></div>'+(broke?'<p class="bad">Over budget. Choose lighter, cheaper materials or earn funding with quizzes and the Survival Lab.</p>':'')+
    (ev&&OD.win?'<div class="debrief"><b class="good">🎉 Outpost operational!</b> Every system kept working. '+(S.stage>=4?'Mars training is now unlocked.':'')+'</div><button class="primary" onclick="go(\'hub\')">Mission Control</button>':'')+
