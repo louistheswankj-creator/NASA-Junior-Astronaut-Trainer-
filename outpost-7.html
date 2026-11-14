@@ -111,6 +111,16 @@ body.wide main{max-width:none;padding:6px 8px}body.nosb .side{display:none}body.
 .dpad button{padding:0;touch-action:none;background:rgba(6,10,30,.85)}#dU{grid-column:2}#dL{grid-column:1;grid-row:2}#dD{grid-column:2;grid-row:2}#dR{grid-column:3;grid-row:2}
 .actbtns{position:absolute;right:10px;bottom:54px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;z-index:3}
 @media(max-width:700px){.hbars{grid-template-columns:repeat(3,minmax(0,1fr))}.panel{top:112px;max-height:calc(100% - 240px)}.hotbar button{padding:5px 8px;font-size:.75rem}}
+
+html{background:#070b1f}
+header{position:relative}
+.hudcard{position:sticky;top:0;z-index:6;background:rgba(7,11,31,.97);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin:8px 0}
+.hudcard .hbars{grid-template-columns:repeat(7,minmax(0,1fr));max-width:none}
+.hudcard .hb{background:rgba(26,38,86,.6)}
+.modalbg{position:fixed;inset:0;background:rgba(0,0,0,.66);display:flex;align-items:center;justify-content:center;z-index:50;padding:12px}
+.modalbg[hidden]{display:none}
+.modalbox{background:var(--panel);border:2px solid var(--accent);border-radius:14px;padding:16px;max-width:580px;max-height:88vh;overflow:auto}
+@media(max-width:700px){.hudcard .hbars{grid-template-columns:repeat(4,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -119,27 +129,65 @@ body.wide main{max-width:none;padding:6px 8px}body.nosb .side{display:none}body.
   <div class="chips" id="chips"></div>
 </header>
 <main id="app"></main>
+<div id="modal" class="modalbg" hidden></div>
 <div id="toast"></div>
 
 <script>
 "use strict";
-const SAVE_KEY="outpost7V1";
+const SAVE_KEY="outpost7V3";
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 const rnd=()=>Math.random();
 const clamp=(v,a=0,b=100)=>Math.max(a,Math.min(b,v));
 const RES=[["o2","🫧","Oxygen"],["water","💧","Water"],["food","🍲","Food"],["power","⚡","Power"],["health","❤️","Health"],["morale","🙂","Morale"]];
 const RIC=Object.fromEntries(RES.map(r=>[r[0],r[1]]));
-const NIGHTS=30,LDAY=15;
+const NIGHTS=30,RADMAX=250,RADBASE=1.4;
 const MODES={
- cadet:{n:"Cadet",icon:"🌱",tag:"Ages 6–9 · gentle",desc:"Slower supply drain, milder events, 16 hours of energy a day, tips, and a wide landing pad.",dr:.6,sev:.6,en:16,samp:4,pad:1.3,vy:4,hints:true},
- junior:{n:"Junior",icon:"🧑‍🚀",tag:"Ages 9–12 · standard",desc:"The standard survival challenge with 14 hours of energy a day and tips from Mission Control.",dr:1,sev:1,en:14,samp:5,pad:1,vy:3,hints:true},
- commander:{n:"Commander",icon:"🎖️",tag:"Challenge",desc:"Faster supply drain, harsher events, 13 hours of energy a day, a smaller landing pad. No tips.",dr:1.25,sev:1.3,en:13,samp:6,pad:.85,vy:2.5,hints:false},
- veteran:{n:"Veteran",icon:"🛰️",tag:"Hard",desc:"Supplies vanish fast, events hit hard, only 11 hours of energy a day and a tiny pad. No tips.",dr:1.5,sev:1.7,en:11,samp:6,pad:.7,vy:2,hints:false},
- free:{n:"Free Play",icon:"🧪",tag:"Sandbox",desc:"You cannot lose. Experiment with every choice and refill supplies any time.",dr:1,sev:1,en:18,samp:1,pad:1,vy:3,hints:true,free:true}
+ cadet:{n:"Cadet",icon:"🌱",tag:"Ages 6–9 · gentle",desc:"Slower drain, fewer problems, lower radiation, 16 hours a day and tips.",dr:.6,sev:.6,en:16,samp:4,prob:.45,radm:.6,hints:true},
+ junior:{n:"Junior",icon:"🧑‍🚀",tag:"Ages 9–12 · standard",desc:"The standard challenge: about one major problem a day, 14 hours a day, with tips.",dr:1,sev:1,en:14,samp:5,prob:.7,radm:1,hints:true},
+ commander:{n:"Commander",icon:"🎖️",tag:"Challenge",desc:"Faster drain, a major problem most mornings, stronger radiation, 13 hours a day. No tips.",dr:1.2,sev:1.3,en:13,samp:6,prob:.8,radm:1.3,hints:false},
+ veteran:{n:"Veteran",icon:"🛰️",tag:"Hard",desc:"A major problem most mornings, harsh radiation, 12 hours a day. No tips.",dr:1.4,sev:1.5,en:12,samp:6,prob:.85,radm:1.6,hints:false},
+ free:{n:"Free Play",icon:"🧪",tag:"Sandbox",desc:"You cannot lose. Try every choice, refill supplies any time and read all the stories.",dr:1,sev:1,en:18,samp:1,prob:.6,radm:1,hints:true,free:true}
 };
+const SITES=[
+ {id:"malapert",n:"Malapert Massif",icon:"⛰️",dark:[11,20],morale:2,radf:1,ice:1,
+  d:"A mountain near the south pole that keeps a long line of sight to Earth. NASA named it one of its candidate Artemis III landing regions.",pros:"Earth stays in view: +2 morale a day. About 10 dark days.",cons:"Ice is a long trip away."},
+ {id:"ridge",n:"Connecting Ridge",icon:"🌄",dark:[16,19],morale:0,radf:1,ice:1.5,
+  d:"A high ridge between Shackleton and de Gerlache craters, in sunlight for most of the month. Also one of NASA's candidate Artemis III regions.",pros:"Sunlit almost all month: only about 4 dark days.",cons:"The ice craters are the farthest away."},
+ {id:"haworth",n:"Haworth crater rim",icon:"🕳️",dark:[8,25],morale:0,radf:.85,ice:.3,
+  d:"The rim of a huge crater with permanently shadowed ice nearby. Another of NASA's candidate Artemis III regions.",pros:"Ice is very close, and the crater walls cut radiation by 15%.",cons:"Long darkness: about 18 dark days."}
+];
 const DAY={o2:12,water:11,food:9,gen:60,use:14,health:3,morale:3,dust:18},NIGHT={o2:12,water:11,food:9,power:44,morale:5};
-const MD=()=>MODES[S.mode||"junior"];
+const FACTS=[
+ "The Moon's gravity is about 1.62 m/s², roughly one sixth of Earth's.","A full lunar day lasts about 29.5 Earth days: about two weeks of sunlight, then two weeks of night.",
+ "Daytime on the Moon reaches about 127 °C. Night drops to about -173 °C.","Permanently shadowed craters near the poles drop below -246 °C, among the coldest places NASA has measured.",
+ "Radio signals take about 1.3 seconds to travel between the Moon and Earth.","Twelve astronauts have walked on the Moon, all during the six Apollo landings between 1969 and 1972.",
+ "Apollo astronauts brought back about 382 kg of Moon rock and soil.","Apollo 17 astronauts spent about three days on the surface, the longest Apollo stay.",
+ "The Apollo Lunar Roving Vehicle could reach about 13 km/h. Apollo 17's rover drove about 36 km in total.","NASA's Artemis program plans to return people to the Moon, with landing regions near the south pole.",
+ "The ISS now recycles about 98% of its water, including sweat and breath moisture.","ISS astronauts exercise about two hours every day to protect their bones and muscles.",
+ "Apollo seismometers recorded moonquakes. In 1969 the Moon 'rang like a bell' for over an hour after an impact.","In 2009 NASA's LCROSS mission found water in the debris plume from Cabeus crater.",
+ "NASA's Lunar Reconnaissance Orbiter has mapped the Moon since 2009, including its polar ice craters.","Shackleton crater is about 21 km wide and about 4 km deep. Parts of its floor have not seen sunlight for billions of years.",
+ "Moon rock is about 40% oxygen by mass, locked in minerals. Heating it can free oxygen.","Perseverance's MOXIE made about 122 grams of oxygen from Mars air in total.",
+ "NASA's Kilopower test (KRUSTY, 2018) showed a small nuclear reactor can run steadily, in tests up to about 1 kilowatt.","NASA's career radiation limit for astronauts is 600 mSv, adopted in 2022.",
+ "People on Earth receive about 3 mSv a year from natural background radiation.","The Moon has no global magnetic field and no thick atmosphere, so radiation reaches the surface.",
+ "The same side of the Moon always faces Earth, because it is tidally locked.","In 1968 Apollo 8 astronauts took the famous Earthrise photograph from lunar orbit.",
+ "Apollo samples are stored and studied at NASA's Johnson Space Center in Houston.","The Moon is about 3,474 km across, a little over a quarter of Earth's diameter.",
+ "Apollo 15's 'Genesis Rock' is anorthosite about 4.1 billion years old.","Lunar dust is sharp and sticky. Apollo 17's Harrison Schmitt reported hay-fever-like symptoms from it.",
+ "Astronauts in orbit can lose about 1% of their bone density per month without exercise.","Mission Control flight surgeons monitor astronaut health from the ground, even for the Artemis missions."
+];
+const NASA=[
+ ["Gravity","1.62 m/s², about one sixth of Earth's."],
+ ["Lunar day","About 29.5 Earth days per cycle: roughly 15 days of sunlight and 15 of night (the exact split depends on where you are)."],
+ ["Temperature","Up to about 127 °C (260 °F) in sunlight, about -173 °C (-280 °F) at night, and below -246 °C (-410 °F) in permanently shadowed polar craters."],
+ ["Radio delay","About 1.3 seconds each way between the Moon and Earth."],
+ ["Radiation","Measurements on the Moon's surface show roughly 1.4 mSv per day, two to three times the ISS dose, because there is no atmosphere or magnetic field. NASA's career limit is 600 mSv. This game uses a 250 mSv limit for one month."],
+ ["Air","An astronaut needs about 0.84 kg of oxygen every day."],
+ ["Water","The ISS recycles about 98% of its water."],
+ ["Samples","Apollo astronauts brought home about 382 kg of Moon rock and soil."]
+];
+const surfaceTemp=()=>isDark(S.day)?-173:Math.round(-40+167*Math.sin(Math.PI*clamp(dayProg(),0,1)));
+const dayProg=()=>clamp(1-S.energy/MD().en,0,1);
+function clock(){const h=7+dayProg()*12;return String(Math.floor(h)).padStart(2,"0")+":"+String(Math.floor((h%1)*60)).padStart(2,"0")}
 
 /* name, complexity(1-3), price($M), value(1-3), stage, fact */
 const ACT = [
@@ -193,6 +241,7 @@ const ACT = [
 const actPts = a => a[1]*a[3]*2 + Math.round(a[2]/5);
 
 
+
 const QUIZ = [
  {q:"Why did NASA's Opportunity rover stop working in 2018?",a:["A giant dust storm blocked sunlight to its solar panels","Its wheels fell off","It ran out of fuel","It fell into a crater"],c:0,e:"Dust storm. Solar rovers lose power when dust blocks sunlight.",g:1,v:5},
  {q:"What kind of power does Curiosity use?",a:["Solar panels","A nuclear battery","Gasoline","Wind"],c:1,e:"A nuclear battery (about 110 W) gives steady power day and night.",g:1,v:5},
@@ -211,6 +260,7 @@ const QUIZ = [
  {q:"Why do astronauts exercise about 2 hours a day in space?",a:["For fun only","To protect bones and muscles in low gravity","To warm up","To make power"],c:1,e:"Low gravity makes bones and muscles weaker unless they are used.",g:1,v:5},
  {q:"Why is a reliability meter used before sending a crew?",a:["To count money","Because a system must be proven by repeated safe landings first","To pick astronauts","To track fuel"],c:1,e:"Real missions test landers many times uncrewed before risking people.",g:2,v:5}
 ];
+
 
 
 function starsSVG(n,w,h,seed){let x=seed,o="";for(let i=0;i<n;i++){x=(x*9301+49297)%233280;const a=x/233280;x=(x*9301+49297)%233280;const b=x/233280;o+=`<circle cx="${(a*w).toFixed(0)}" cy="${(b*h*.65).toFixed(0)}" r="${(.4+b).toFixed(1)}" fill="#fff" opacity="${(.3+a*.6).toFixed(2)}"/>`}return o}
@@ -250,39 +300,38 @@ function home(){
     o+=`<g transform="rotate(${a} 500 500)">${rm?"":`<animateTransform attributeName="transform" type="rotate" from="${a} 500 500" to="${a+360} 500 500" dur="${dur}s" repeatCount="indefinite"/>`}<g transform="translate(${500+R},500)"><title>${n}</title>${planetBody(k,r)}</g></g>`});
   return o+`</svg>`}
 
-const KEY={};
-function onKey(e,d){const m={ArrowUp:"u",w:"u"," ":"u",ArrowLeft:"l",a:"l",ArrowRight:"r",d:"r"}[e.key];if(m){KEY[m]=d;if(V==="landing")e.preventDefault()}}
-window.addEventListener("keydown",e=>onKey(e,true));window.addEventListener("keyup",e=>onKey(e,false));
-function stopLanding(){if(LND)LND.stop=true;LND=null}
 
-function drawLanding(me){
-  const c=me.c.getContext("2d"),L=me.L;
-  let g=c.createLinearGradient(0,0,0,420);g.addColorStop(0,"#02040f");g.addColorStop(1,"#18245a");c.fillStyle=g;c.fillRect(0,0,700,420);
-  c.fillStyle="#fff";for(let i=0;i<70;i++){c.globalAlpha=.3+(i%5)*.14;c.fillRect((i*97)%700,(i*53)%240,1.5,1.5)}c.globalAlpha=1;
-  g=c.createRadialGradient(612,60,2,620,66,26);g.addColorStop(0,"#9fd0ff");g.addColorStop(1,"#1e4fa8");c.fillStyle=g;c.beginPath();c.arc(620,66,26,0,6.3);c.fill();
-  g=c.createLinearGradient(0,330,0,420);g.addColorStop(0,"#7a7fa3");g.addColorStop(1,"#363a5c");c.fillStyle=g;
-  c.beginPath();c.moveTo(0,420);me.terr.forEach(p=>c.lineTo(p[0],p[1]));c.lineTo(700,420);c.fill();
-  c.strokeStyle="#a9aed0";c.lineWidth=2;c.beginPath();me.terr.forEach((p,i)=>i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]));c.stroke();
-  c.fillStyle="rgba(0,0,0,.2)";for(let i=0;i<6;i++){const x=(i*131+40)%700;if(Math.abs(x-me.pad)>me.pw/2+30){c.beginPath();c.ellipse(x,me.ground(x)+16+i*4,18+i*3,4+i%3,0,0,6.3);c.fill()}}
-  c.fillStyle="#4ade80";c.fillRect(me.pad-me.pw/2,353,me.pw,5);
-  c.fillStyle=(Math.floor(Date.now()/400)%2)?"#fde047":"#a16207";c.fillRect(me.pad-me.pw/2-3,349,4,9);c.fillRect(me.pad+me.pw/2-1,349,4,9);
-  c.fillStyle="#cbd5f5";c.font="12px Audiowide,serif";c.fillText("PAD",me.pad-10,375);
-  if(me.dust>4){c.fillStyle="rgba(200,200,200,.25)";c.beginPath();c.arc(L.x,me.ground(L.x)-6,me.dust*1.5,0,6.3);c.fill()}
-  c.save();c.translate(L.x,L.y);
-  const fire=me.state==="flying"&&L.fuel>0;
-  if(fire&&KEY.u){c.fillStyle="#fb923c";c.beginPath();c.moveTo(-5,6);c.lineTo(0,18+Math.random()*10);c.lineTo(5,6);c.fill();c.fillStyle="#fde047";c.beginPath();c.moveTo(-2.5,6);c.lineTo(0,13+Math.random()*5);c.lineTo(2.5,6);c.fill()}
-  if(fire&&KEY.l){c.fillStyle="#fb923c";c.fillRect(11,-3,8+Math.random()*6,3)}
-  if(fire&&KEY.r){c.fillStyle="#fb923c";c.fillRect(-19-Math.random()*6,-3,8+Math.random()*6,3)}
-  c.strokeStyle="#cbd0e6";c.lineWidth=2;c.beginPath();c.moveTo(-9,6);c.lineTo(-16,12);c.moveTo(9,6);c.lineTo(16,12);c.stroke();
-  c.fillStyle="#e5e7eb";c.beginPath();c.moveTo(-8,-12);c.lineTo(8,-12);c.lineTo(12,2);c.lineTo(-12,2);c.fill();
-  c.fillStyle="#d6a23a";c.fillRect(-12,2,24,5);c.fillStyle="#60a5fa";c.beginPath();c.arc(0,-6,3.5,0,6.3);c.fill();
-  c.restore();
-  c.fillStyle="#eaf0ff";c.font="13px Audiowide,serif";
-  c.fillText("Vertical "+(L.vy/10).toFixed(1)+" m/s   Sideways "+(L.vx/10).toFixed(1)+" m/s   Fuel "+Math.max(0,Math.round(L.fuel))+"%",10,18);
-}
-
-const actEnergy=a=>a[1];
+/* ============ STATE ============ */
+function fresh(){return {mode:null,phase:"home",site:null,day:1,res:{o2:100,water:100,food:100,power:100,health:100,morale:80},rad:0,dust:0,armor:0,buried:0,energy:14,penalty:0,sp:0,done:{},samples:[],loaded:[],modules:[],orders:[],kits:[],poi:{},seen:[],evLog:[],ev:null,report:null,over:null,log:[],alert:0,arr:{step:0},lastRad:-9,tab:"maintain"}}
+let S=(function(){try{const t=localStorage.getItem(SAVE_KEY);if(t)return Object.assign(fresh(),JSON.parse(t))}catch(e){}return fresh()})();
+function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(S))}catch(e){}}
+const MD=()=>MODES[S.mode||"junior"];
+const siteOf=()=>SITES.find(s=>s.id===S.site)||SITES[0];
+const isDark=d=>{const s=siteOf();return d>=s.dark[0]&&d<=s.dark[1]};
+const sunUp=()=>!isDark(S.day);
+const mods=t=>S.modules.filter(m=>m.t===t).length;
+const capP=()=>100+60*mods("fuelcell");
+const armorEff=()=>Math.min(3,S.armor+.5*S.buried);
+const shieldF=()=>Math.max(.3,1-.15*armorEff());
+let V="home",Q=null;
+function toast(msg){const t=$("#toast");t.innerHTML='<div class="toast">'+esc(msg)+'</div>';clearTimeout(toast.t);toast.t=setTimeout(()=>t.innerHTML="",3200)}
+function log(m){S.log.unshift(m);S.log=S.log.slice(0,10)}
+function go(v){V=v;render();window.scrollTo(0,0)}
+function clampRes(){for(const k in S.res){const v=Math.round(S.res[k]);S.res[k]=k==="power"?clamp(v,0,capP()):clamp(v)}}
+function applyFx(fx,sev,prot){
+  let out=[];
+  for(const k in fx){let v=fx[k];
+    if(k==="e"){S.penalty+=v;out.push("⏱️ -"+v+"h tomorrow");continue}
+    if(k==="armor"){S.armor=Math.min(3,S.armor+v);continue}
+    if(k==="dust"){const b=S.dust;S.dust=clamp(S.dust+v);if(v!==0)out.push("🌫️ dust "+(v>0?"+":"")+Math.round(S.dust-b));continue}
+    if(k==="delay"){S.orders.forEach(o=>o.arrive+=v);if(S.orders.length)out.push("📦 deliveries delayed "+v+" day");continue}
+    if(k==="rad"){const d=Math.round(v*MD().radm*(v>0?shieldF()*siteOf().radf:1)*10)/10;S.rad=Math.max(0,Math.round((S.rad+d)*10)/10);if(d)out.push("☢️ "+(d>0?"+":"")+d+" mSv");continue}
+    if(v<0&&sev)v=Math.round(v*sev*(prot?1-.25*armorEff():1)*(1-.1*mods("seis")));
+    S.res[k]=k==="power"?clamp(S.res[k]+v,0,capP()):clamp(S.res[k]+v);
+    if(v)out.push(RIC[k]+" "+(v>0?"+":"")+v)}
+  clampRes();return out.join("  ")}
 const unlockDay=a=>({1:1,2:3,3:5})[a[4]]||1;
+
 const CH=[
  {id:"o2",icon:"🫧",n:"Service the oxygen scrubbers",e:1,fx:{o2:14},ctx:"The ISS uses machines to pull out CO2 and make oxygen. They need regular care.",fact:"Apollo 13 crews once rigged a CO2 filter from duct tape and a sock-like hose. Scrubbers matter."},
  {id:"water",icon:"💧",n:"Recycle water",e:1,fx:{water:12},ctx:"The ISS recycles about 90% of its water, even from sweat and breath.",fact:"Every litre of water launched costs a fortune, so crews reuse almost everything."},
@@ -364,16 +413,7 @@ const EV=[
   real:["Lunar Reconnaissance Orbiter","NASA's LRO has mapped the Moon from orbit since 2009, including the ice in its polar craters."]}
 
 ];
-const NASA=[
- ["Gravity","1.62 m/s², about one sixth of Earth's."],
- ["Lunar day","One full cycle takes about 29.5 Earth days: roughly 15 days of sunlight, then 15 days of night. That is why this mission lasts 30 days."],
- ["Temperature","Up to about 127 °C (260 °F) in sunlight and about -173 °C (-280 °F) at night. Permanently shadowed polar craters drop below -246 °C (-410 °F)."],
- ["Radio delay","About 1.3 seconds each way between the Moon and Earth."],
- ["Air","An astronaut needs about 0.84 kg of oxygen every day."],
- ["Water","The ISS recycles about 98% of its water. Reusing water is how crews survive."],
- ["Samples","Apollo astronauts brought home about 382 kg of Moon rock and soil."]
-];
-function surfaceTemp(){return sunUp()?Math.round(-40+167*Math.sin(Math.PI*clamp(dayProg(),0,1))):-173}
+
 const SAMPLES=[
  {id:"regolith",icon:"🟫",n:"Regolith",fact:"Lunar soil is sharp and glassy. It clung to Apollo suits, and Apollo 17's Harrison Schmitt described hay-fever-like symptoms from the dust."},
  {id:"anorthosite",icon:"⚪",n:"Anorthosite",fact:"Apollo 15's 'Genesis Rock' (15415) is anorthosite about 4.1 billion years old, a piece of the Moon's original crust."},
@@ -384,95 +424,14 @@ const SAMPLES=[
  {id:"kreep",icon:"🟧",n:"KREEP rock",fact:"KREEP is rich in potassium (K), rare earth elements (REE) and phosphorus (P). Apollo 14 and 15 found it. It is leftover magma-ocean material."},
  {id:"ice",icon:"🧊",n:"Polar ice core",fact:"NASA's LCROSS mission (2009) detected water in the plume from Cabeus crater, and LRO data show ice in permanently shadowed polar craters."}
 ];
+
 const FAIL={
  o2:["Out of oxygen","Without air you cannot last more than minutes. Scrubbers, plants and making oxygen from moon rock keep crews alive. Real spacecraft have backup systems for exactly this."],
  health:["Health collapsed","Radiation, cold, thirst and hunger wore your body down. Exercise, medical checks and shelter all matter on long missions."]
 };
-/* ============ STATE ============ */
-function fresh(){return {mode:null,phase:"home",sp:0,day:1,res:{o2:100,water:100,food:100,power:100,health:100,morale:80},dust:0,armor:0,energy:7,penalty:0,samples:[],loaded:[],modules:[],carry:null,poi:{},disc:{},walkE:0,walkO:0,exh:0,suitDust:0,cabinDust:0,crates:[],done:{},ev:null,seen:[],evLog:[],report:null,over:null,arrival:null,log:[],lastFx:""}}
-let S=(function(){try{const t=localStorage.getItem(SAVE_KEY);if(t)return Object.assign(fresh(),JSON.parse(t))}catch(e){}return fresh()})();
-function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(S))}catch(e){}}
-let V="home",TAB=null,Q=null,LND=null;
-function toast(msg){const t=$("#toast");t.innerHTML='<div class="toast">'+esc(msg)+'</div>';clearTimeout(toast.t);toast.t=setTimeout(()=>t.innerHTML="",2800)}
-function log(m){S.log.unshift(m);S.log=S.log.slice(0,8)}
-function go(v){V=v;render();window.scrollTo(0,0)}
-const capP=()=>100+60*(S.modules||[]).filter(m=>m.t==="fuelcell").length;
-const sunUp=()=>S.day<=LDAY;
-function clampRes(){for(const k in S.res){const v=Math.round(S.res[k]);S.res[k]=k==="power"?clamp(v,0,capP()):clamp(v)}}
-function applyFx(fx,sev,prot){
-  let out=[];
-  for(const k in fx){let v=fx[k];
-    if(k==="e"){S.penalty+=v;out.push("⚡ -"+v+" energy tomorrow");continue}
-    if(k==="armor"){S.armor=Math.min(3,S.armor+v);continue}
-    if(k==="dust"){const before=S.dust;S.dust=clamp(S.dust+v);if(v!==0)out.push("🌫️ dust "+(v>0?"+":"")+(S.dust-before));continue}
-    if(v<0&&sev)v=Math.round(v*sev*(prot?1-.25*S.armor:1)*(1-.1*S.modules.filter(m=>m.t==="seis").length));
-    S.res[k]=k==="power"?clamp(S.res[k]+v,0,capP()):clamp(S.res[k]+v);
-    if(v)out.push(RIC[k]+" "+(v>0?"+":"")+v)}
-  clampRes();return out.join("  ")}
-function pickMode(k){S=fresh();S.mode=k;S.phase="landing";S.energy=MODES[k].en;save();go("lore")}
-function resume(){const p=S.phase;go(p==="landing"?"landing":p==="event"?"event":p==="night"?"night":p==="end"?"end":"base")}
-function barH(label,v,max,cls){const p=Math.max(0,Math.min(100,v/max*100));return '<div class="small">'+label+' '+Math.round(v)+'</div><div class="bar '+(cls||(p<25?'danger':p<50?'warn':''))+'"><i style="width:'+p+'%"></i></div>'}
 
-/* ============ SCENE ============ */
-function baseScene(night){
-  const W=800,H=300,gy=235;
-  let o=`<svg viewBox="0 0 ${W} ${H}" class="scene" role="img" aria-label="Outpost 7 on the Moon at ${night?"night":"day"}">`+skyGround(W,H,gy,false,"b");
-  if(!night)o+=`<circle cx="90" cy="78" r="16" fill="#ffd166"/><circle cx="90" cy="78" r="30" fill="#ffd166" opacity=".18"/>`;
-  [0,1,2].forEach(i=>{const x=470+i*70;o+=`<path d="M${x},${gy} V${gy-26}" stroke="#9aa3bf" stroke-width="3"/><path d="M${x-26},${gy-26} L${x-14},${gy-52} L${x+30},${gy-52} L${x+30},${gy-26}Z" fill="#2563eb"/><path d="M${x-26},${gy-26} L${x-14},${gy-52} L${x+30},${gy-52} L${x+30},${gy-26}Z" fill="#a9834f" opacity="${Math.min(.9,S.dust/110).toFixed(2)}"/><path d="M${x},${gy-52} V${gy-26}" stroke="#93c5fd" stroke-width=".8"/>`});
-  o+=`<g transform="translate(190,${gy}) scale(1.5)">${habSVG()}</g><g transform="translate(715,${gy}) scale(.9)">${landerSVG()}</g>`;
-  o+=`<path d="M650,${gy} V${gy-40} M640,${gy-48} Q650,${gy-62} 660,${gy-48}" stroke="#cbd0e6" stroke-width="2" fill="none"/>`;
-  if(night){o+=`<rect width="${W}" height="${H}" fill="#000" opacity=".5"/><g transform="translate(190,${gy}) scale(1.5)"><circle cx="0" cy="-18" r="5" fill="#ffd166"/></g><circle cx="190" cy="${gy-27}" r="12" fill="#ffd166" opacity=".22"/>`}
-  const done=S.over&&S.over.win?NIGHTS:S.day-1;
-  o+=`<rect x="22" y="14" width="182" height="9" rx="4" fill="none" stroke="#e5e7eb" opacity=".6"/><rect x="22" y="14" width="${Math.round(182*done/NIGHTS)}" height="9" rx="4" fill="#e5e7eb"/>`;
-  o+=`<text x="22" y="40" font-size="11" style="fill:var(--muted)">Days survived: ${done} of ${NIGHTS}</text>`;
-  return o+`</svg>`}
-/* ============ BASE (DAY) ============ */
-function resBars(){return `<div class="grid">${RES.map(r=>`<div>${barH(r[1]+" "+r[2],S.res[r[0]],100)}</div>`).join("")}</div><p class="small muted">Solar panels ${S.dust}% dusty · Shelter armor ${S.armor}/3</p>`}
-function tip(){
-  if(!MD().hints)return"";
-  let low=RES.slice(0,4).concat([RES[4]]).sort((a,b)=>S.res[a[0]]-S.res[b[0]])[0],t;
-  const m={o2:"Service the oxygen scrubbers.",water:"Recycle water.",food:"Cook a meal.",power:"Brush the solar panels or save power.",health:"Exercise or do a medical check."};
-  if(S.res[low[0]]<45)t=low[2]+" is low. "+m[low[0]];
-  else if(S.day>=4&&S.loaded.length<MD().samp)t="Mission needs "+MD().samp+" rock sample"+(MD().samp===1?"":"s")+". Check the Mission tab for where to find them, then load them at the pad.";
-  else if(S.dust>50)t="Panels are dusty, so brush them before you lose power.";
-  else if(S.energy>=3)t="You have spare energy. Science tasks earn Science Points.";
-  else t="When you are out of energy, end the day.";
-  return `<p class="small good">💡 Tip: ${esc(t)}</p>`}
-/* ============ BASE: 2D WORLD ============ */
-const SOL=[[30,240,70,6],[150,240,140,6],[340,240,110,6],[500,240,50,6],[30,294,70,6],[150,294,140,6],[340,294,100,6],[490,294,60,6],[225,40,6,200],[395,40,6,200],[225,300,6,200],[395,300,6,200],[550,40,8,210],[550,290,8,210]];
-const RECTS=[[38,48,504,444],[540,256,70,28],[606,8,2086,1784],[8,517,598,1275]];
-const STN={
- o2:{x:80,y:100,icon:"🫧",label:"O₂ scrubber",lamp:"o2"},
- water:{x:170,y:100,icon:"💧",label:"Water recycler",lamp:"water"},
- food:{x:310,y:100,icon:"🍲",label:"Galley",lamp:"food"},
- lab:{x:470,y:100,icon:"🔬",label:"Science lab"},
- power:{x:125,y:190,icon:"🔋",label:"Battery bank",lamp:"power"},
- gym:{x:110,y:420,icon:"🏋️",label:"Gym"},
- comms:{x:310,y:420,icon:"📡",label:"Comms console",lamp:"morale"},
- med:{x:440,y:370,icon:"🩺",label:"Med bay",lamp:"health"},
- bunk:{x:500,y:455,icon:"🛏️",label:"Bunk"},
- rest:{x:62,y:270,icon:"🌍",label:"Earth window"},
- dustoff:{x:578,y:270,icon:"🧼",label:"Suit brush"},
- solar:{x:770,y:150,icon:"☀️",label:"Solar array",lamp:"dust"},
- shelter:{x:700,y:330,icon:"🧱",label:"Regolith pile"},
- isru:{x:830,y:330,icon:"⚗️",label:"Oxygen maker"},
- field:{x:850,y:220,icon:"🔭",label:"Field site"},
- pad:{x:760,y:450,icon:"🛬",label:"Landing pad"}
-};
-const CHST={power:"power",o2:"o2",water:"water",food:"food",dust:"solar",gym:"gym",call:"comms",med:"med",rest:"rest",shelter:"shelter",isru:"isru"};
-const OUTCH={dust:1,shelter:1,isru:1};
-const OUTRE=/crater|dune|riverbed|meteorite|cliff|lava|shadowed|space walk|boulder|rock layers|ice|sunset|sky|solar telescope|seismometer|instrument|sieve|volcanic|find water/i;
-const isOutSci=a=>OUTRE.test(a[0]);
-const NODES=[[60,270],[130,270],[315,270],[475,270],[540,270],[575,270],[650,270],[125,215],[125,325],[315,215],[315,325],[475,215],[465,325],[80,150],[170,150],[110,380],[430,330],[500,400],[310,380],[650,150],[650,400],[760,200],[760,380],[850,150],[850,280],[700,60],[880,450],[700,450],[760,330],[650,520],[620,545],[400,545],[100,545]];
-function ok(x,y){
-  let inn=false;for(const r of RECTS)if(x>=r[0]&&x<=r[0]+r[2]&&y>=r[1]&&y<=r[1]+r[3]){inn=true;break}
-  if(!inn)return false;
-  for(const s of SOL)if(x>s[0]-7&&x<s[0]+s[2]+7&&y>s[1]-7&&y<s[1]+s[3]+7)return false;
-  return true}
-function los(a,b){const n=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/6);for(let i=0;i<=n;i++){const t=n?i/n:0;if(!ok(a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t))return false}return true}
-/* ============ OPEN WORLD ============ */
-const WORLD_W=2700,WORLD_H=1800,CAM={x:0,y:0};
-const isOut=(x,y)=>x>=556||y>=512;
+FAIL.rad=["Radiation limit exceeded","Too much radiation raises long-term health risks and can cause acute sickness. NASA sets exposure limits and shelters crews during solar particle events."];
+
 const MODK={
  solar:{n:"Solar array extension",icon:"☀️",cost:20,sh:"panel",c:["#2f6bd8","#173d96"],fx:{power:10},solar:1,d:"+10 power each lunar day (needs sunlight)"},
  kilo:{n:"Kilopower fission reactor",icon:"☢️",cost:60,sh:"reactor",c:["#cbd0e6","#6b7390"],fx:{power:36},d:"+36 power every day and night. NASA's Kilopower design makes steady power without sunlight."},
@@ -496,7 +455,7 @@ const MODK={
  lab:{n:"Sample analysis lab",icon:"🧪",cost:40,sh:"box",c:["#c7d2fe","#4f46e5"],fx:{sp:5},d:"+5 Science Points every day"}
 };
 const MODMAX=2;
-const SC={anorthosite:"#e5e7eb",basalt:"#3b3b4c",breccia:"#8d7058",regolith:"#a39c8c",glass:"#f59e0b",ilmenite:"#4a4f6a",kreep:"#b5651d",ice:"#9bd0ff"};
+
 const WLOG=[
  ["Log, night 2: The scrubbers are failing. Everyone has headaches and we are too tired to fix them.",{o2:15},"You find spare air canisters."],
  ["Log, night 3: The panels are buried in dust. We kept waiting for the storm to pass.",{power:15},"You salvage a few working battery cells."],
@@ -505,6 +464,7 @@ const WLOG=[
  ["Log, night 6: The heaters died. It is -170 outside and the cold is coming through the walls.",{power:12},"You recover battery packs."],
  ["Log, night 5: We stopped talking. Nobody wants to be the one who says it is over.",{morale:15},"You find a handwritten letter from home. It helps."]
 ];
+
 const POIS=[
  {id:"wreck1",kind:"wreck",n:1,x:1250,y:500,label:"Wreck of Outpost 1"},{id:"wreck2",kind:"wreck",n:2,x:1700,y:150,label:"Wreck of Outpost 2"},
  {id:"wreck3",kind:"wreck",n:3,x:2300,y:600,label:"Wreck of Outpost 3"},{id:"wreck4",kind:"wreck",n:4,x:2250,y:1100,label:"Wreck of Outpost 4"},
@@ -518,515 +478,7 @@ const POIS=[
  {id:"site_kreep",kind:"site",type:"kreep",x:950,y:1600,label:"KREEP hills"},
  {id:"site_ilmenite",kind:"site",type:"ilmenite",x:2550,y:250,label:"Titanium-rich plain"}
 ];
-POIS.forEach(p=>{STN["poi_"+p.id]={x:p.x,y:p.y,icon:"❓",label:p.label,out:1,poi:p}});
-const SITEFOR={regolith:"field",anorthosite:"poi_site_anorthosite",basalt:"poi_site_basalt",breccia:"poi_site_breccia",glass:"poi_site_glass",kreep:"poi_site_kreep",ilmenite:"poi_site_ilmenite",ice:"poi_ice"};
-function syncStn(){for(const k of Object.keys(STN))if(k.startsWith("mod_"))delete STN[k];S.modules.forEach((m,i)=>{const k=MODK[m.t];STN["mod_"+i]={x:m.x,y:m.y,icon:k.icon,label:k.n,out:1,mod:m.t}})}
-const crateName=i=>typeof i==="string"?"Module kit: "+MODK[i.slice(2)].n:SUP[i].n;
-const crateCtx=i=>typeof i==="string"?MODK[i.slice(2)].d:SUP[i].ctx;
-function compass(dx,dy){const a=Math.atan2(dy,dx)*180/Math.PI,names=["east","south-east","south","south-west","west","north-west","north","north-east"];return names[((Math.round(a/45)%8)+8)%8]}
-function where(id){const s=STN[SITEFOR[id]],pad=STN.pad,d=Math.hypot(s.x-pad.x,s.y-pad.y)*1.5;return id==="regolith"?"next to the base":"about "+(d>=1000?(d/1000).toFixed(1)+" km":Math.round(d/10)*10+" m")+" "+compass(s.x-pad.x,s.y-pad.y)+" of the pad"}
-function buyModule(k){const m=MODK[k],free=MD().free;if(!free&&S.sp<m.cost)return;const have=S.modules.filter(x=>x.t===k).length+S.crates.filter(c=>c==="m:"+k).length+(S.carry===k?1:0);if(have>=(m.max||MODMAX)){toast("You already have the maximum of that module.");return}if(!free)S.sp-=m.cost;S.crates.push("m:"+k);log("🏗️ Ordered "+m.n+". It lands on the pad.");toast("A module kit is landing at the pad!");save();refresh()}
-function placeModule(){
-  if(!S.carry){toast("You are not carrying a module kit. Open one at the landing pad first.");return}
-  if(!isOut(P.x,P.y)){toast("Build modules outside, on the open surface.");return}
-  if(S.energy<2){toast("Not enough energy to build (2 hours needed).");return}
-  const bx=P.x+P.fx*40,by=P.y+P.fy*40;
-  if(!ok(bx,by)||by<540&&bx<640){toast("There is no room to build there.");return}
-  for(const id in STN)if(Math.hypot(STN[id].x-bx,STN[id].y-by)<75){toast("Too close to another structure. Move a little further away.");return}
-  const k=MODK[S.carry];S.energy-=2;S.res.o2=clamp(S.res.o2-3);S.suitDust=clamp(S.suitDust+25);
-  S.modules.push({t:S.carry,x:Math.round(bx),y:Math.round(by)});if(S.carry==="shelter")S.armor=Math.min(3,S.armor+1);
-  log("🏗️ Built "+k.n+".");toast(k.icon+" "+k.n+" built! "+k.d);S.carry=null;syncStn();save();refresh()}
-function searchWreck(p){const id="poi_"+p.id;if(S.poi[id]){toast("You already searched this wreck.");return}if(S.energy<1){toast("Not enough energy.");return}S.energy-=1;S.res.o2=clamp(S.res.o2-3);S.suitDust=clamp(S.suitDust+25);S.poi[id]=1;const w=WLOG[p.n-1],t=applyFx(w[1],0);S.sp+=6;log("🔦 Searched Outpost "+p.n+" → "+t+" (+6 SP)");let bonus="";if(storiesFound()>=6&&!S.poi.allstories){S.poi.allstories=1;S.sp+=30;S.res.morale=clamp(S.res.morale+15);bonus="You have now read all six logs. Their message is clear: check the air, clean the panels, stay near shelter, patch the walls, keep warm and look after each other. +30 SP and a morale boost.";log("📜 All six logs read: +30 SP")}save();refresh();showStory(p.n,w[2]+(bonus?"  "+bonus:""))}
-function collectSampleAt(id){const t=SAMPLES.find(x=>x.id===id);if(S.samples.includes(id)){toast("You already have "+t.n+".");return}if(S.energy<2){toast("Not enough energy. Go to bed to end the day.");return}S.energy-=2;S.res.o2=clamp(S.res.o2-3);S.suitDust=clamp(S.suitDust+25);S.samples.push(id);S.sp+=8;log("⛏️ Collected "+t.n+" → +8 SP");toast(t.icon+" "+t.n+": "+t.fact);save();refresh()}
-function drillIce(){if(S.poi.ice){toast("You already drilled here. The ice core is in your supplies.");return}if(S.energy<2){toast("Not enough energy.");return}S.energy-=2;S.res.o2=clamp(S.res.o2-3);S.suitDust=clamp(S.suitDust+25);S.poi.ice=1;if(!S.samples.includes("ice"))S.samples.push("ice");const t=applyFx({water:30},0);S.sp+=10;log("🧊 Drilled water ice → "+t+" (+10 SP, ice core sample)");toast("🧊 "+SAMPLES.find(x=>x.id==="ice").fact);save();refresh()}
-function exploreLava(){if(S.poi.lava){toast("You already explored this cave.");return}if(S.energy<3){toast("Not enough energy (3 hours needed).");return}S.energy-=3;S.res.o2=clamp(S.res.o2-3);S.poi.lava=1;S.armor=Math.min(3,S.armor+1);S.res.morale=clamp(S.res.morale+6);S.sp+=12;log("🕳️ Explored the lava tube → shelter knowledge +1 armor (+12 SP)");toast("🕳️ Lava tubes shield from radiation and temperature swings, so they could shelter a future base.");save();refresh()}
-function goSampleType(id){if(!needEnergy(2))return;goStation(SITEFOR[id],id==="ice"?drillIce:()=>collectSampleAt(id))}
-function poiActions(id,s,A){const p=s.poi;
-  if(p.kind==="wreck"){if(S.poi[id])toast("You already searched this wreck.");else A.push({l:"🔦 Search the wreck of Outpost "+p.n+" (⚡1)",ctx:LOST[p.n-1].cause,dis:S.energy<1,run:()=>searchWreck(p)})}
-  else if(p.kind==="site"){const t=SAMPLES.find(x=>x.id===p.type);if(S.samples.includes(p.type))toast("You already collected "+t.n+" here.");else A.push({l:"⛏️ Collect "+t.n+" (⚡2)",ctx:t.fact,dis:S.energy<2,run:()=>collectSampleAt(p.type)})}
-  else if(p.kind==="ice"){if(S.poi.ice)toast("You already drilled here.");else A.push({l:"🧊 Drill for water ice (⚡2)",ctx:"Some craters near the poles never see sunlight and trap ice.",dis:S.energy<2,run:drillIce})}
-  else if(p.kind==="lava"){if(S.poi.lava)toast("You already explored this cave.");else A.push({l:"🕳️ Explore the lava tube (⚡3)",ctx:"Lava tubes could shelter bases from radiation and temperature swings.",dis:S.energy<3,run:exploreLava})}
-  return A}
-function vis(x,y,m){return x>CAM.x-m&&x<CAM.x+VW+m&&y>CAM.y-m&&y<CAM.y+VH+m}
-let GPAT=null,CRATERS=[];
-function buildWorld(){
-  const t=document.createElement("canvas");t.width=1024;t.height=1024;const c=t.getContext("2d");c.scale(2,2);const R=mulberry(11);
-  c.fillStyle="#8e91aa";c.fillRect(0,0,512,512);
-  for(let i=0;i<46;i++){const x=R()*512,y=R()*512,r=30+R()*70,d=R()<.5;for(const ox of[-512,0,512])for(const oy of[-512,0,512]){const gr=c.createRadialGradient(x+ox,y+oy,0,x+ox,y+oy,r);gr.addColorStop(0,d?"rgba(0,0,0,.08)":"rgba(255,255,255,.07)");gr.addColorStop(1,"rgba(0,0,0,0)");c.fillStyle=gr;c.fillRect(x+ox-r,y+oy-r,r*2,r*2)}}
-  for(let i=0;i<2600;i++){const x=R()*512,y=R()*512,s=.5+R()*1.1;c.fillStyle=R()<.5?`rgba(255,255,255,${.08+R()*.18})`:`rgba(0,0,0,${.08+R()*.2})`;c.fillRect(x,y,s,s)}
-  GPAT=c.createPattern(t,"repeat");try{GPAT.setTransform(new DOMMatrix([.5,0,0,.5,0,0]))}catch(e){}
-  const R2=mulberry(99),R3=mulberry(31),all=Object.values(STN);
-  for(let i=0;i<90;i++){const r=16+R2()*(R2()<.2?100:44),x=r+R2()*(WORLD_W-2*r),y=r+R2()*(WORLD_H-2*r);if(x<680+r&&y<580+r)continue;if(all.some(s=>Math.hypot(s.x-x,s.y-y)<r+70))continue;CRATERS.push([x,y,r])}
-  for(let i=0;i<1100;i++){const x=R3()*WORLD_W,y=R3()*WORLD_H;if(x<640&&y<560)continue;if(all.some(s=>Math.hypot(s.x-x,s.y-y)<48))continue;ROCKS.push([x,y,1.5+R3()*R3()*7])}
-}
-function drawBiomes(c){
-  const TC={wreck:null,ilmenite:"20,20,45,.2",kreep:"180,80,40,.14",anorthosite:"255,255,255,.13",basalt:"0,0,12,.2",breccia:"120,80,60,.16",glass:"245,158,11,.16",ice:"10,25,70,.25",lava:"0,0,0,.2"};
-  for(const id in STN){const s=STN[id];if(!s.poi||!vis(s.x,s.y,260))continue;const k=s.poi.kind==="site"?s.poi.type:s.poi.kind,col=TC[k];if(!col)continue;const gr=c.createRadialGradient(s.x,s.y,10,s.x,s.y,240);gr.addColorStop(0,"rgba("+col+")");gr.addColorStop(1,"rgba(0,0,0,0)");c.fillStyle=gr;c.fillRect(s.x-240,s.y-240,480,480)}
-}
-function drawCraters(c){
-  CRATERS.forEach(([x,y,r])=>{if(!vis(x,y,r+10))return;let gr=c.createRadialGradient(x+r*.25,y+r*.25,0,x,y,r);gr.addColorStop(0,"rgba(0,0,0,.5)");gr.addColorStop(.7,"rgba(0,0,0,.18)");gr.addColorStop(1,"rgba(0,0,0,0)");c.fillStyle=gr;c.beginPath();c.arc(x,y,r,0,6.3);c.fill();c.lineWidth=Math.max(1.5,r/12);c.strokeStyle="rgba(255,255,255,.34)";c.beginPath();c.arc(x,y,r,3.4,5.4);c.stroke();c.strokeStyle="rgba(0,0,0,.36)";c.beginPath();c.arc(x,y,r,.3,2.3);c.stroke()})
-}
-function drawPoi(c,s,SD){
-  const p=s.poi,x=s.x,y=s.y,done=p.kind==="wreck"?S.poi[s.poiId||("poi_"+p.id)]:p.kind==="site"?S.samples.includes(p.type):S.poi[p.kind];
-  c.globalAlpha=done?.6:1;
-  if(p.kind==="wreck"){disc(c,x,y+6,52,"rgba(0,0,0,.4)","rgba(0,0,0,0)");c.fillStyle="rgba(0,0,0,.4)";c.beginPath();c.ellipse(x+SD.x,y+SD.y,40,22,0,0,6.3);c.fill();
-    c.save();c.translate(x,y);c.rotate(p.n%2?.4:-.5);c.fillStyle="#8a93b4";c.beginPath();c.arc(0,0,36,Math.PI,0);c.lineTo(36,0);c.lineTo(-36,0);c.fill();c.strokeStyle="#2b2f45";c.lineWidth=2;c.beginPath();c.moveTo(-10,-34);c.lineTo(-2,-14);c.lineTo(-14,-2);c.moveTo(14,-30);c.lineTo(8,-12);c.stroke();c.fillStyle="#1b1f33";c.fillRect(-30,0,60,8);c.restore();
-    const R=mulberry(p.n*7);for(let i=0;i<7;i++){const a=R()*6.3,d=30+R()*34;box(c,x+Math.cos(a)*d,y+Math.sin(a)*d,5+R()*8,4+R()*6,"#9aa3bf","#4b5272",1)}
-    c.strokeStyle="#ddd";c.lineWidth=2;c.beginPath();c.moveTo(x+48,y+16);c.lineTo(x+48,y-24);c.stroke();c.fillStyle="#1b1b1b";c.fillRect(x+48,y-8,14,9)}
-  else if(p.kind==="site"){const col=SC[p.type],R=mulberry(p.type.length*13);for(let i=0;i<9;i++){const a=R()*6.3,d=R()*46,rx=x+Math.cos(a)*d,ry=y+Math.sin(a)*d,r=4+R()*8;c.fillStyle="rgba(0,0,0,.4)";c.beginPath();c.ellipse(rx+SD.x*r/8,ry+SD.y*r/8,r*1.1,r*.8,0,0,6.3);c.fill();disc(c,rx,ry,r,col,"#2a2d40")}
-    c.strokeStyle="#ddd";c.lineWidth=2;c.beginPath();c.moveTo(x,y+4);c.lineTo(x,y-32);c.stroke();c.fillStyle=col;c.fillRect(x,y-32,16,10);c.strokeStyle="#000";c.lineWidth=.7;c.strokeRect(x,y-32,16,10)}
-  else if(p.kind==="ice"){disc(c,x,y,70,"#05070f","#2b3050");c.strokeStyle="rgba(255,255,255,.4)";c.lineWidth=3;c.beginPath();c.arc(x,y,70,3.4,5.4);c.stroke();c.fillStyle="rgba(150,210,255,.55)";[[-20,-10,16,9],[14,12,20,10],[-6,22,12,7],[26,-16,10,6]].forEach(a=>{c.beginPath();c.ellipse(x+a[0],y+a[1],a[2],a[3],.4,0,6.3);c.fill()})}
-  else if(p.kind==="lava"){c.fillStyle="rgba(0,0,0,.4)";c.beginPath();c.ellipse(x+SD.x,y+SD.y,56,32,0,0,6.3);c.fill();disc(c,x,y,52,"#6a6e8a","#2a2d40");const g=c.createRadialGradient(x,y,2,x,y,32);g.addColorStop(0,"#000");g.addColorStop(1,"#0a0b14");c.fillStyle=g;c.beginPath();c.ellipse(x,y,34,21,0,0,6.3);c.fill();c.strokeStyle="#9aa3bf";c.lineWidth=2;c.beginPath();c.ellipse(x,y,34,21,0,0,6.3);c.stroke();c.fillStyle="#8a8fa8";[[-40,10],[38,-6],[10,-34]].forEach(a=>{c.beginPath();c.arc(x+a[0],y+a[1],6,0,6.3);c.fill()})}
-  c.globalAlpha=1}
-function drawModule(c,s,SD){
-  const x=s.x,y=s.y,k=MODK[s.mod],sh=k.sh,c1=k.c[0],c2=k.c[1];
-  c.fillStyle="rgba(0,0,0,.4)";c.beginPath();c.ellipse(x+SD.x*1.2,y+SD.y*1.2,36,26,0,0,6.3);c.fill();
-  if(sh==="dome"){disc(c,x,y,32,c1,c2);c.fillStyle="rgba(255,255,255,.18)";c.beginPath();c.ellipse(x-9,y-12,12,7,.5,0,6.3);c.fill();c.strokeStyle="rgba(255,255,255,.5)";c.lineWidth=1.5;c.beginPath();c.arc(x,y,32,0,6.3);c.stroke()}
-  else if(sh==="box"){box(c,x-32,y-24,64,48,c1,c2,5);c.strokeStyle="rgba(255,255,255,.3)";c.lineWidth=1;c.strokeRect(x-27,y-19,54,38);disc(c,x+24,y-16,4,"#bfe0ff","#4a7ac0")}
-  else if(sh==="tank"){[-1,1].forEach(a=>{disc(c,x+a*16,y,16,c1,c2);c.strokeStyle="rgba(0,0,0,.4)";c.lineWidth=1.5;c.beginPath();c.arc(x+a*16,y,16,0,6.3);c.stroke()});box(c,x-12,y+14,24,9,"#475066","#2a3050",2);c.strokeStyle="#6ee7b7";c.lineWidth=3;c.beginPath();c.moveTo(x-16,y-16);c.lineTo(x-16,y-24);c.lineTo(x+16,y-24);c.lineTo(x+16,y-16);c.stroke()}
-  else if(sh==="panel"){[-1,1].forEach(a=>{box(c,x+a*26-22,y-28,44,56,c1,c2,2);c.strokeStyle="rgba(190,215,255,.5)";c.lineWidth=.7;for(let i=1;i<4;i++){c.beginPath();c.moveTo(x+a*26-22,y-28+i*14);c.lineTo(x+a*26+22,y-28+i*14);c.stroke()}})}
-  else if(sh==="mound"){disc(c,x,y,36,c1,c2);c.save();c.beginPath();c.arc(x,y,36,0,6.3);c.clip();c.fillStyle="#8a7d66";c.strokeStyle="rgba(0,0,0,.35)";for(let i=0;i<12;i++){rr(c,x-30+(i%4)*16,y-26+Math.floor(i/4)*17,14,9,2);c.fill();c.stroke()}c.restore();box(c,x-8,y+8,16,24,"#4a5280","#2a3050",2)}
-  else if(sh==="reactor"){for(let i=0;i<8;i++){const a=i*Math.PI/4;c.save();c.translate(x,y);c.rotate(a);box(c,10,-4,26,8,"#9aa3bf","#4b5272",1);c.restore()}disc(c,x,y,16,"#f1f3fa","#6b7390");disc(c,x,y,8,"#fbbf24","#b45309");c.strokeStyle="#f59e0b";c.lineWidth=2;c.beginPath();c.arc(x,y,16,0,6.3);c.stroke()}
-  else if(sh==="mast"){c.strokeStyle="#cbd0e6";c.lineWidth=3;c.beginPath();c.moveTo(x,y+18);c.lineTo(x,y-26);c.stroke();[-18,18].forEach(a=>{c.beginPath();c.moveTo(x,y+18);c.lineTo(x+a,y+26);c.stroke()});disc(c,x,y-28,7,c1,c2);box(c,x-16,y+8,32,14,"#4b5272","#2a3050",3)}
-  else if(sh==="dish"){disc(c,x,y,30,c1,c2);c.strokeStyle="rgba(0,0,0,.25)";c.lineWidth=1;[22,14,6].forEach(r=>{c.beginPath();c.arc(x,y,r,0,6.3);c.stroke()});c.strokeStyle="#6b7390";c.lineWidth=3;c.beginPath();c.moveTo(x,y);c.lineTo(x+16,y-20);c.stroke();disc(c,x+16,y-22,4,"#fbbf24","#b45309")}
-  c.font="16px sans-serif";c.textAlign="center";c.textBaseline="middle";c.fillStyle="#fff";c.fillText(k.icon,x,y);c.textAlign="left";c.textBaseline="alphabetic"}
-function drawMinimap(c){
-  const mw=210,mh=140,mx=VW-mw-8,my=58,sc=mw/WORLD_W;
-  c.save();c.fillStyle="rgba(5,8,25,.96)";rr(c,mx,my,mw,mh,6);c.fill();c.strokeStyle="#6a77c0";c.lineWidth=1;c.stroke();
-  c.fillStyle="#4a5280";c.fillRect(mx+20*sc,my+30*sc,540*sc,480*sc);
-  const col={wreck:"#f87171",ice:"#7dd3fc",lava:"#fb923c"};
-  for(const id in STN){const s=STN[id];let k=null;if(s.poi&&S.disc[id])k=s.poi.kind==="site"?SC[s.poi.type]:col[s.poi.kind];if(s.mod)k="#4ade80";if(k){c.fillStyle=k;c.beginPath();c.arc(mx+s.x*sc,my+s.y*sc,s.mod?2.5:2.8,0,6.3);c.fill()}}
-  c.strokeStyle="rgba(255,255,255,.55)";if(!FPV)c.strokeRect(mx+CAM.x*sc,my+CAM.y*sc,VW*sc,VH*sc);
-  c.strokeStyle="#fde047";c.lineWidth=1.5;c.beginPath();c.moveTo(mx+P.x*sc,my+P.y*sc);c.lineTo(mx+(P.x+P.fx*90)*sc,my+(P.y+P.fy*90)*sc);c.stroke();c.fillStyle="#fde047";c.beginPath();c.arc(mx+P.x*sc,my+P.y*sc,3.2,0,6.3);c.fill();
-  c.font="7px Audiowide,sans-serif";c.fillStyle="#9aa8d8";c.fillText("MAP",mx+4,my+9);c.restore()}
 
-let ADJ=null;
-function route(from,to){
-  if(!ADJ){ADJ=NODES.map((a,i)=>NODES.map((b,j)=>i!==j&&Math.hypot(a[0]-b[0],a[1]-b[1])<330&&los(a,b)))}
-  const pts=NODES.concat([from,to]),n=pts.length,N=NODES.length,s=n-2,t=n-1,dist=Array(n).fill(1e9),prev=Array(n).fill(-1),done=Array(n).fill(false);
-  dist[s]=0;
-  for(;;){let u=-1;for(let i=0;i<n;i++)if(!done[i]&&(u<0||dist[i]<dist[u]))u=i;if(u<0||dist[u]>=1e9)break;done[u]=true;if(u===t)break;
-    for(let v=0;v<n;v++){if(done[v]||v===u)continue;const link=(u<N&&v<N)?ADJ[u][v]:los(pts[u],pts[v]);if(!link)continue;const d=dist[u]+Math.hypot(pts[u][0]-pts[v][0],pts[u][1]-pts[v][1]);if(d<dist[v]){dist[v]=d;prev[v]=u}}}
-  if(prev[t]<0)return[];const out=[];for(let c=t;c!==s;c=prev[c])out.unshift(pts[c]);return out}
-let UIDIRTY=0,LASTUI=0;
-let P={x:300,y:270,yaw:1.57,fx:0,fy:1,path:[],pending:null,near:null,t:0,moving:false,wasIn:true,trail:[],step:0},K={},LOOP=0,POP=false;
-function walkTo(x,y,pend){const p=route([P.x,P.y],[x,y]);if(!p.length){toast("You cannot walk there.");return}P.path=p;P.pending=pend||null}
-function goStation(id,act){const s=STN[id];closePop();if(Math.hypot(P.x-s.x,P.y-s.y)<16){P.path=[];act?act():execStation(id);return}walkTo(s.x,s.y,()=>act?act():execStation(id))}
-function needEnergy(e){if(S.energy<e){toast("Not enough energy. Go to bed to end the day.");return false}return true}
-function goChore(id){const c=CH.find(x=>x.id===id);if(!needEnergy(c.e))return;goStation(CHST[id],()=>doChore(id))}
-function goSci(i){const a=ACT[i];if(!needEnergy(a[1]))return;goStation(isOutSci(a)?"field":"lab",()=>doSci(i))}
-function goQuiz(){if(!needEnergy(1))return;goStation("comms",startQuiz)}
-function goCrate(k){goStation("pad",()=>openCrate(k))}
-function goBed(){goStation("bunk")}
-function goSample(){if(!needEnergy(2))return;goStation("field",collectSample)}
-function goLoad(){if(!needEnergy(1))return;goStation("pad",loadSamples)}
-function collectSample(){const left=SAMPLES.filter(t=>!S.samples.includes(t.id));if(!left.length){toast("You have every sample type already.");return}if(S.energy<2){toast("Not enough energy. Go to bed to end the day.");return}const t=left[Math.floor(rnd()*left.length)];S.energy-=2;S.res.o2=clamp(S.res.o2-3);S.suitDust=clamp(S.suitDust+25);S.samples.push(t.id);S.sp+=8;log("⛏️ Collected "+t.n+" → +8 SP");toast(t.icon+" "+t.n+": "+t.fact);save();refresh()}
-function loadSamples(){const n=S.samples.filter(x=>!S.loaded.includes(x)).length;if(!n){toast("No new samples to load.");return}if(S.energy<1){toast("Not enough energy. Go to bed to end the day.");return}S.energy-=1;S.loaded=S.samples.slice();log("📦 Loaded "+n+" sample(s) into the return capsule.");toast("Samples are safe in the return capsule: "+S.loaded.length+"/"+MD().samp);save();refresh()}
-function openCrate(k){const i=S.crates[k];if(i===undefined)return;if(typeof i==="string"){if(S.carry){toast("You are already carrying a module kit. Place it first.");return}S.carry=i.slice(2);S.crates.splice(k,1);log("🏗️ Picked up a module kit.");toast("Module kit on your back. Walk anywhere outside and press Place (B) to build.");save();refresh();return}const s=SUP[i],t=applyFx(s.fx,0);S.crates.splice(k,1);log("📦 Opened "+s.n+" → "+t);toast("Crate opened: "+s.n);save();refresh()}
-function actionsAt(id){
-  const A=[];const stn=STN[id];
-  if(stn&&stn.mod){toast(stn.label+": "+MODK[stn.mod].d);return A}
-  if(stn&&stn.poi)return poiActions(id,stn,A);
-  const chore=Object.keys(CHST).find(k=>CHST[k]===id);
-  if(chore&&id!=="comms"){const c=CH.find(x=>x.id===chore);A.push({l:c.icon+" "+c.n,ctx:c.ctx,dis:S.energy<c.e||(c.max&&S.armor>=c.max),run:()=>doChore(chore)})}
-  if(id==="comms"){const c=CH.find(x=>x.id==="call");A.push({l:"📞 Call home (⚡1)",ctx:c.ctx,dis:S.energy<1,run:()=>doChore("call")});A.push({l:"❓ Mission Control quiz (⚡1)",ctx:"Answer questions to earn Science Points.",dis:S.energy<1,run:startQuiz})}
-  if(id==="lab"||id==="field")A.push({l:"🔬 Pick a task",ctx:"Open the Science tab in the sidebar and choose a task.",run:()=>{TAB="science";refresh()}});
-  if(id==="field")A.push({l:"⛏️ Collect a rock sample (⚡2)",ctx:"Dig a sample tube. Each rock type tells scientists something new.",dis:S.energy<2||S.samples.includes("regolith"),run:()=>collectSampleAt("regolith")});
-  if(id==="bunk")A.push({l:"🛏️ Sleep and end Day "+S.day,ctx:S.energy>0?"You still have "+S.energy+" energy left.":"A good night's rest.",run:endDay});
-  if(id==="dustoff")A.push({l:"🧼 Brush the dust off your suit",ctx:"Moon dust is sharp and sticks to everything. Brush it off before you go inside.",run:()=>{if(S.suitDust<1)toast("Your suit is already clean.");else{S.suitDust=0;log("🧼 Suit brushed clean.");toast("Suit clean!");refresh()}}});
-  if(id==="pad"){if(S.samples.length>S.loaded.length)A.push({l:"📦 Load samples into the return capsule (⚡1)",ctx:"The capsule takes your samples home.",dis:S.energy<1,run:loadSamples});if(!S.crates.length&&S.samples.length<=S.loaded.length)toast("Nothing to open or load here yet.");S.crates.forEach((i,k)=>A.push({l:(typeof i==="string"?"🏗️ Pick up: ":"📦 Open: ")+crateName(i),ctx:crateCtx(i),run:()=>openCrate(k)}))}
-  return A}
-function execStation(id){
-  const A=actionsAt(id);if(!A.length)return;
-  if(A.length>1||id==="bunk"||id==="pad"){openPop(STN[id].label,A);return}
-  if(A[0].dis){toast(S.energy<1?"Not enough energy. Go to bed to end the day.":"Nothing more to do here.");return}
-  A[0].run()}
-function openPop(title,A){POP=true;const p=$("#pop");if(!p)return;p.hidden=false;p.innerHTML=`<b>${esc(title)}</b>`+A.map((a,i)=>`<button class="opt" ${a.dis?"disabled":""} onclick="popRun(${i})">${a.l}<span class="ctx">${esc(a.ctx||"")}</span></button>`).join("")+`<button class="sm" onclick="closePop()">Cancel</button>`;P.popA=A}
-function popRun(i){const a=P.popA[i];closePop();a.run()}
-function closePop(){POP=false;const p=$("#pop");if(p){p.hidden=true;p.innerHTML=""}}
-function useNear(){if(P.near)execStation(P.near)}
-function startDay(){P.x=490;P.y=420;P.path=[];P.pending=null;S.phase="day";save();go("base")}
-function refresh(){if(V==="base"){renderSide();chips();updateUse()}}
-function updateUse(){const pb=$("#placeBtn");if(pb){pb.hidden=!S.carry;if(S.carry)pb.textContent="🏗️ Place "+MODK[S.carry].n+" (B)"}const b=$("#useBtn");if(!b)return;b.disabled=!P.near;b.textContent=P.near?"E: "+STN[P.near].label:"Walk to a station";}
-function stopLoop(){LOOP++}
-function startLoop(){stopLoop();const id=LOOP;let last=performance.now();(function f(now){if(id!==LOOP)return;const dt=Math.min(.05,(now-last)/1000);last=now;update(dt);draw();requestAnimationFrame(f)})(last)}
-function update(dt){
-  P.t+=dt;PART=PART.filter(q=>{q.l-=dt*1.1;q.x+=q.vx*dt;q.y+=q.vy*dt;return q.l>0});let dx=0,dy=0;
-  if(FPV&&!POP){if(K.rl)P.yaw-=2*dt;if(K.rr)P.yaw+=2*dt;const fw=(K.u?1:0)-(K.d?1:0),sd=(K.r?1:0)-(K.l?1:0);dx=fw*Math.cos(P.yaw)-sd*Math.sin(P.yaw);dy=fw*Math.sin(P.yaw)+sd*Math.cos(P.yaw)}
-  else if(!POP){if(K.l)dx--;if(K.r)dx++;if(K.u)dy--;if(K.d)dy++}
-  const manual=dx||dy;
-  if(manual){P.path=[];P.pending=null}
-  else if(P.path.length&&!POP){const w=P.path[0],ex=w[0]-P.x,ey=w[1]-P.y,d=Math.hypot(ex,ey);if(d<5){P.path.shift();if(!P.path.length&&P.pending){const f=P.pending;P.pending=null;f()}}else{dx=ex/d;dy=ey/d;if(FPV){let da=Math.atan2(dy,dx)-P.yaw;while(da>Math.PI)da-=6.2832;while(da<-Math.PI)da+=6.2832;P.yaw+=da*Math.min(1,dt*8)}}}
-  P.moving=false;
-  if(dx||dy){const m=Math.hypot(dx,dy);dx/=m;dy/=m;P.fx=dx;P.fy=dy;const sp=(isOut(P.x,P.y)?85:125)*dt,nx=P.x+dx*sp,ny=P.y+dy*sp;let mv=false;
-    if(ok(nx,P.y)){P.x=nx;mv=true}if(ok(P.x,ny)){P.y=ny;mv=true}
-    if(mv&&isOut(P.x,P.y)){const wf=S.modules.some(m=>m.t==="ltv")?.5:1;S.walkE+=sp/320*wf;S.walkO+=sp/130*MD().dr*wf;S.suitDust=clamp(S.suitDust+sp/80);if(S.walkE>=1){S.walkE-=1;if(S.energy>0)S.energy--;UIDIRTY=1}if(S.walkO>=1){const n=Math.floor(S.walkO);S.walkO-=n;S.res.o2=clamp(S.res.o2-n*(S.energy<=0?2:1));UIDIRTY=1}if(S.energy<=0&&!S.exh){S.exh=1;toast("You are exhausted! Head back and sleep. Oxygen drains faster now.")}}
-    if(mv){if(isOut(P.x,P.y)&&Math.random()<.4)PART.push({x:P.x,y:P.y+6,vx:(Math.random()-.5)*16,vy:-3-Math.random()*8,l:.8});P.moving=true;P.step+=sp;if(isOut(P.x,P.y)&&P.step>13){P.step=0;P.trail.push({x:P.x,y:P.y+8});if(P.trail.length>70)P.trail.shift()}}
-    else if(P.path.length){P.path=[];P.pending=null}}
-  const inNow=!isOut(P.x,P.y)&&P.x<552;
-  if(inNow&&!P.wasIn&&S.suitDust>30){S.cabinDust=clamp(S.cabinDust+S.suitDust);S.suitDust=0;toast("Moon dust got inside the habitat! Brush your suit at the airlock next time.");log("🧤 Dust tracked into the cabin.");save();refresh()}
-  P.wasIn=inNow;
-  {const tx=clamp(P.x-VW/2,0,WORLD_W-VW),ty=clamp(P.y-VH/2,0,WORLD_H-VH);CAM.x+=(tx-CAM.x)*Math.min(1,dt*6);CAM.y+=(ty-CAM.y)*Math.min(1,dt*6)}
-  for(const id in STN){const q=STN[id];if(q.poi&&!S.disc[id]&&Math.hypot(P.x-q.x,P.y-q.y)<300){S.disc[id]=1;toast("📍 Discovered: "+q.label);save();UIDIRTY=1}}
-  if(FPV){P.fx=Math.cos(P.yaw);P.fy=Math.sin(P.yaw)}
-  if(UIDIRTY&&P.t-LASTUI>.5){UIDIRTY=0;LASTUI=P.t;renderSide();chips()}
-  let best=null,bd=40;for(const id in STN){const s=STN[id],d=Math.hypot(P.x-s.x,P.y-s.y);if(d<bd){bd=d;best=id}}
-  if(best!==P.near){P.near=best;updateUse()}
-}
-function lampCol(id){const s=STN[id];if(!s.lamp)return null;const v=s.lamp==="dust"?100-S.dust:S.res[s.lamp];return v>50?"#4ade80":v>25?"#fbbf24":(Math.floor(P.t*3)%2?"#f87171":"#7f1d1d")}
-/* ============ FIRST PERSON ============ */
-const WALLS=SOL.concat([[20,30,550,10],[20,500,550,10],[20,30,10,480],[550,246,56,10],[550,284,56,10]]);
-const EYE=20,WALLH=64,FPFOV=1.2;
-function rayWall(ox,oy,dx,dy){
-  let best=1e9,side=0;
-  for(const w of WALLS){let tmin=-1e9,tmax=1e9,sd=0;
-    if(Math.abs(dx)<1e-9){if(ox<w[0]||ox>w[0]+w[2])continue}else{let t1=(w[0]-ox)/dx,t2=(w[0]+w[2]-ox)/dx;if(t1>t2){const t=t1;t1=t2;t2=t}if(t1>tmin){tmin=t1;sd=0}if(t2<tmax)tmax=t2}
-    if(Math.abs(dy)<1e-9){if(oy<w[1]||oy>w[1]+w[3])continue}else{let t1=(w[1]-oy)/dy,t2=(w[1]+w[3]-oy)/dy;if(t1>t2){const t=t1;t1=t2;t2=t}if(t1>tmin){tmin=t1;sd=1}if(t2<tmax)tmax=t2}
-    if(tmax>=tmin&&tmin>0.01&&tmin<best){best=tmin;side=sd}}
-  return [best,side]}
-const FPSTARS=(()=>{const R=mulberry(77),a=[];for(let i=0;i<140;i++)a.push([R()*6.283,R()*.55,.5+R()*1.2,.3+R()*.7]);return a})();
-function fpPoint(x,y,W,hz,f,cx,cy){const dx=x-P.x,dy=y-P.y,z=dx*cx+dy*cy,l=dx*(-cy)+dy*cx;return z>6?{z,l,sx:W/2+l/z*f,gy:hz+EYE*f/z}:null}
-function fpBox(c,w,h,c1,c2){const g=c.createLinearGradient(0,-h,0,0);g.addColorStop(0,c1);g.addColorStop(1,c2);c.fillStyle=g;c.fillRect(-w/2,-h,w,h);c.strokeStyle="rgba(0,0,0,.45)";c.lineWidth=1;c.strokeRect(-w/2,-h,w,h);c.fillStyle="rgba(255,255,255,.18)";c.fillRect(-w/2,-h,w,3)}
-function fpDome(c,r,c1,c2,sq){const g=c.createRadialGradient(-r*.3,-r*.5*(sq||1),r*.1,0,0,r);g.addColorStop(0,c1);g.addColorStop(1,c2);c.fillStyle=g;c.beginPath();c.ellipse(0,0,r,r*(sq||.8),0,Math.PI,0);c.fill();c.strokeStyle="rgba(0,0,0,.4)";c.lineWidth=1;c.stroke()}
-function fpRock(c,r,col){const g=c.createRadialGradient(-r*.3,-r*.6,1,0,-r*.4,r);g.addColorStop(0,col||"#c8cad9");g.addColorStop(1,"#3a3d54");c.fillStyle=g;c.beginPath();c.ellipse(0,-r*.45,r,r*.6,0,0,6.3);c.fill()}
-function fpSpriteDraw(c,key,s,t){
-  if(s.poi){const p=s.poi;
-    if(p.kind==="wreck"){c.save();c.rotate(p.n%2?.3:-.35);fpDome(c,38,"#a3abc8","#4b5272",.8);c.restore();c.fillStyle="#1b1f33";c.fillRect(-34,-3,68,6);for(let i=0;i<5;i++){c.save();c.translate(-50+i*22,0);fpBox(c,10,6+(i%3)*3,"#9aa3bf","#4b5272");c.restore()}c.strokeStyle="#ddd";c.lineWidth=2;c.beginPath();c.moveTo(56,0);c.lineTo(56,-34);c.stroke();c.fillStyle="#1b1b1b";c.fillRect(56,-20,14,9);return}
-    if(p.kind==="site"){const R=mulberry(p.type.length*13);for(let i=0;i<7;i++){c.save();c.translate(-34+R()*68,-R()*4);fpRock(c,5+R()*9,SC[p.type]);c.restore()}c.strokeStyle="#ddd";c.lineWidth=2;c.beginPath();c.moveTo(0,0);c.lineTo(0,-36);c.stroke();c.fillStyle=SC[p.type];c.fillRect(0,-36,16,10);return}
-    if(p.kind==="ice"||p.kind==="lava"){c.strokeStyle=p.kind==="ice"?"#7dd3fc":"#fb923c";c.lineWidth=2;c.beginPath();c.moveTo(0,0);c.lineTo(0,-40);c.stroke();c.fillStyle=p.kind==="ice"?"#7dd3fc":"#fb923c";c.fillRect(0,-40,14,9);return}
-  }
-  if(s.mod){const k=MODK[s.mod],sh=k.sh,c1=k.c[0],c2=k.c[1];
-    if(sh==="dome")fpDome(c,32,c1,c2);else if(sh==="box"||sh==="mound"&&false)fpBox(c,60,36,c1,c2);
-    else if(sh==="tank"){[-16,16].forEach(a=>{c.save();c.translate(a,0);fpBox(c,28,32,c1,c2);c.restore()})}
-    else if(sh==="panel"){c.strokeStyle="#9aa3bf";c.lineWidth=3;c.beginPath();c.moveTo(-26,0);c.lineTo(-26,-18);c.moveTo(26,0);c.lineTo(26,-18);c.stroke();c.fillStyle=c1;c.beginPath();c.moveTo(-44,-18);c.lineTo(-30,-44);c.lineTo(48,-44);c.lineTo(34,-18);c.fill();c.strokeStyle="rgba(190,215,255,.6)";c.lineWidth=.8;for(let i=1;i<5;i++){c.beginPath();c.moveTo(-44+i*14,-18);c.lineTo(-30+i*15,-44);c.stroke()}}
-    else if(sh==="mound"){fpDome(c,40,c1,c2,.55);c.fillStyle="#4a5280";c.fillRect(-8,-14,16,14)}
-    else if(sh==="reactor"){fpBox(c,22,40,c1,c2);for(let i=-2;i<=2;i++){c.fillStyle="#9aa3bf";c.fillRect(-26+(i+2)*10.4-2,-14,4,14)}fpDome(c,14,"#fbbf24","#b45309");c.save();c.translate(0,-40);fpDome(c,14,"#fbbf24","#b45309");c.restore()}
-    else if(sh==="mast"){c.strokeStyle="#cbd0e6";c.lineWidth=3;c.beginPath();c.moveTo(0,0);c.lineTo(0,-46);c.stroke();c.fillStyle=c1;c.beginPath();c.arc(0,-48,6,0,6.3);c.fill();fpBox(c,30,10,"#4b5272","#2a3050")}
-    else if(sh==="dish"){c.strokeStyle="#9aa3bf";c.lineWidth=4;c.beginPath();c.moveTo(0,0);c.lineTo(0,-22);c.stroke();c.fillStyle=c1;c.beginPath();c.ellipse(0,-34,26,18,-.4,0,6.3);c.fill();c.strokeStyle="rgba(0,0,0,.3)";c.stroke()}
-    c.font="18px sans-serif";c.textAlign="center";c.fillStyle="#fff";c.fillText(k.icon,0,-12);return}
-  if(key==="pad"){c.strokeStyle="#cbd0e6";c.lineWidth=3;[[-30,0,-18,-14],[30,0,18,-14]].forEach(a=>{c.beginPath();c.moveTo(a[0],a[1]);c.lineTo(a[2],a[3]);c.stroke()});c.fillStyle="#d6a23a";c.fillRect(-26,-18,52,8);c.fillStyle="#eceff8";c.beginPath();c.moveTo(-22,-18);c.lineTo(22,-18);c.lineTo(14,-48);c.lineTo(-14,-48);c.fill();c.fillStyle="#60a5fa";c.beginPath();c.arc(0,-34,5,0,6.3);c.fill();return}
-  if(key==="shelter"){fpDome(c,32+S.armor*5,"#a69880","#5f5444",.55);return}
-  if(key==="isru"){fpBox(c,40,30,"#8b94ae","#59627c");c.strokeStyle="#cbd0e6";c.lineWidth=3;c.beginPath();c.moveTo(20,-18);c.lineTo(38,-34);c.stroke();c.font="16px sans-serif";c.textAlign="center";c.fillStyle="#fff";c.fillText("⚗️",0,-9);return}
-  if(key==="field"){c.strokeStyle="#cbd0e6";c.lineWidth=2.5;[[-10,0],[10,0],[0,0]].forEach((a,i)=>{c.beginPath();c.moveTo(a[0],a[1]);c.lineTo(0,-26);c.stroke()});fpBox(c,12,8,"#e5e7eb","#9aa3bf");c.translate(0,-26);fpBox(c,12,8,"#e5e7eb","#9aa3bf");c.translate(0,26);[[-28,5],[24,4]].forEach(a=>{c.save();c.translate(a[0],0);fpRock(c,a[1]*1.3);c.restore()});return}
-  if(key==="dustoff"){c.strokeStyle="#fbbf24";c.lineWidth=4;c.strokeRect(-14,-34,28,34);c.fillStyle="#262b3f";c.fillRect(-12,-32,24,32);c.font="16px sans-serif";c.textAlign="center";c.fillStyle="#fff";c.fillText("🧼",0,-12);return}
-  // indoor equipment: box with icon
-  const col={o2:["#e2e6f0","#7b8396"],water:["#6bb2ff","#2860b8"],food:["#9a7650","#5b4326"],lab:["#d3daea","#8e98b4"],gym:["#323648","#1b1e2b"],comms:["#44566e","#27323f"],med:["#f4f6ff","#c3cbe6"],bunk:["#7d8bb8","#4a5584"],rest:["#181e3c","#0c1128"],power:["#3a3f55","#1c2030"]}[key]||["#394072","#232845"];
-  fpBox(c,key==="bunk"?46:40,key==="gym"?30:key==="bunk"?18:26,col[0],col[1]);c.font="20px sans-serif";c.textAlign="center";c.textBaseline="middle";c.fillStyle="#fff";c.fillText(s.icon,0,-12);c.textBaseline="alphabetic"
-}
-function drawFP(c){
-  const W=VW,H=VH,hz=H*.46+Math.sin(P.t*10)*(P.moving?1.5:0),f=(W/2)/Math.tan(FPFOV/2),yaw=P.yaw,cx=Math.cos(yaw),cy=Math.sin(yaw),inside=!isOut(P.x,P.y),night=!sunUp()&&!inside;
-  // sky / ceiling
-  let g=c.createLinearGradient(0,0,0,hz);
-  if(inside){g.addColorStop(0,"#161a30");g.addColorStop(1,"#2c3358")}else{g.addColorStop(0,"#01020a");g.addColorStop(1,"#0b1334")}
-  c.fillStyle=g;c.fillRect(0,0,W,hz);
-  if(!inside){
-    FPSTARS.forEach(s=>{let a=s[0]-yaw;a=((a+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;if(Math.abs(a)>1)return;c.fillStyle=`rgba(255,255,255,${s[3]})`;c.fillRect(W/2+Math.tan(a)*f,hz-s[1]*f*1.2-4,s[2],s[2])});
-    let a=-2.3-yaw;a=((a+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;
-    if(Math.abs(a)<1){const ex=W/2+Math.tan(a)*f,ey=hz-.33*f;const eg=c.createRadialGradient(ex-5,ey-5,2,ex,ey,26);eg.addColorStop(0,"#9fd0ff");eg.addColorStop(1,"#1e4fa8");c.fillStyle=eg;c.beginPath();c.arc(ex,ey,26,0,6.3);c.fill();c.fillStyle="rgba(74,222,128,.7)";c.beginPath();c.ellipse(ex-6,ey-3,8,5,.5,0,6.3);c.fill()}
-    if(sunUp()){const pr=dayProg();let a2=(Math.PI*(.1+.8*pr)-1.5)-yaw;a2=((a2+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;const el=Math.sin(Math.PI*pr)*.45+.04;if(Math.abs(a2)<1.1){const sx=W/2+Math.tan(a2)*f,sy=hz-el*f;const sg=c.createRadialGradient(sx,sy,2,sx,sy,60);sg.addColorStop(0,"rgba(255,244,200,1)");sg.addColorStop(.15,"rgba(255,220,120,.9)");sg.addColorStop(1,"rgba(255,200,80,0)");c.fillStyle=sg;c.fillRect(sx-60,sy-60,120,120)}}
-    // horizon ridge
-    c.fillStyle="#2a2e48";c.beginPath();c.moveTo(0,hz);for(let x=0;x<=W;x+=8){const ang=yaw+Math.atan((x-W/2)/f);const h=6+22*(Math.sin(ang*3.1)+.6*Math.sin(ang*7.7+1.3)+.5)*(Math.sin(ang*1.7)*.4+.6);c.lineTo(x,hz-Math.max(2,h))}c.lineTo(W,hz);c.fill()}
-  // ground / floor
-  g=c.createLinearGradient(0,hz,0,H);
-  if(inside){g.addColorStop(0,"#1f2440");g.addColorStop(1,"#3e4678")}else{g.addColorStop(0,"#5a5e7a");g.addColorStop(1,"#a3a7be")}
-  c.fillStyle=g;c.fillRect(0,hz,W,H-hz);
-  const cell=70;
-  if(!inside){
-    // speckles
-    const ci=Math.floor(P.x/cell),cj=Math.floor(P.y/cell);
-    for(let i=ci-9;i<=ci+9;i++)for(let j=cj-9;j<=cj+9;j++){const h=Math.sin(i*127.1+j*311.7)*43758.5453,r1=h-Math.floor(h),h2=Math.sin(i*269.5+j*183.3)*43758.5453,r2=h2-Math.floor(h2);const q=fpPoint((i+r1)*cell,(j+r2)*cell,W,hz,f,cx,cy);if(!q||q.z>650)continue;const sz=Math.max(.6,f*2/q.z);c.fillStyle=r1>.5?"rgba(255,255,255,.18)":"rgba(0,0,0,.2)";c.beginPath();c.ellipse(q.sx,q.gy,sz,sz*.35,0,0,6.3);c.fill()}
-    // craters on the ground
-    const flat=(x,y,r,col,rim)=>{const dx=x-P.x,dy=y-P.y,z=dx*cx+dy*cy,l=dx*(-cy)+dy*cx;if(z-r<8||z>1500)return;const y1=hz+EYE*f/(z-r),y2=hz+EYE*f/(z+r),sx=W/2+l/z*f,rx=r*f/z;if(sx<-rx*1.5||sx>W+rx*1.5)return;const gr=c.createRadialGradient(sx,(y1+y2)/2,1,sx,(y1+y2)/2,Math.max(2,rx));gr.addColorStop(0,col);gr.addColorStop(1,"rgba(0,0,0,0)");c.fillStyle=gr;c.beginPath();c.ellipse(sx,(y1+y2)/2,rx,Math.max(1,(y1-y2)/2),0,0,6.3);c.fill();c.strokeStyle=rim;c.lineWidth=2;c.beginPath();c.ellipse(sx,(y1+y2)/2,rx,Math.max(1,(y1-y2)/2),0,Math.PI*.9,Math.PI*2.1);c.stroke()};
-    CRATERS.forEach(q=>flat(q[0],q[1],q[2],"rgba(0,0,0,.55)","rgba(255,255,255,.3)"));
-    for(const id in STN){const s=STN[id];if(s.poi&&s.poi.kind==="ice")flat(s.x,s.y,70,"rgba(5,8,25,.95)","rgba(150,210,255,.5)");if(s.poi&&s.poi.kind==="lava")flat(s.x,s.y,40,"rgba(0,0,0,.95)","rgba(180,185,210,.5)")}
-  }
-  // walls
-  const cw=3,n=Math.ceil(W/cw),zb=new Float32Array(n);
-  for(let i=0;i<n;i++){const sxc=i*cw+cw/2,ang=Math.atan((sxc-W/2)/f),ra=yaw+ang,dx=Math.cos(ra),dy=Math.sin(ra),h=rayWall(P.x,P.y,dx,dy),d=h[0];if(d>1e8){zb[i]=1e9;continue}
-    const dp=d*Math.cos(ang);zb[i]=dp;const top=hz-(WALLH-EYE)*f/dp,bot=hz+EYE*f/dp,u=h[1]===0?P.y+dy*d:P.x+dx*d,seam=Math.abs(((u%24)+24)%24-12)>11.2;
-    const sh=Math.max(.22,Math.min(1,1.25-d/800))*(h[1]?.82:1),base=inside?[126,140,212]:[184,194,224];
-    c.fillStyle=`rgb(${Math.round(base[0]*sh*(seam?.6:1))},${Math.round(base[1]*sh*(seam?.6:1))},${Math.round(base[2]*sh*(seam?.6:1))})`;c.fillRect(i*cw,top,cw+.5,bot-top);
-    c.fillStyle="rgba(0,0,0,.22)";c.fillRect(i*cw,hz-(WALLH/2-EYE)*f/dp,cw+.5,Math.max(1,3*f/dp));c.fillStyle="rgba(255,255,255,.25)";c.fillRect(i*cw,top,cw+.5,Math.max(1,f*1.5/dp))}
-  // sprites
-  const list=[];
-  const add=(x,y,key,s,w)=>{const q=fpPoint(x,y,W,hz,f,cx,cy);if(!q||q.z>1600)return;if(Math.abs(q.sx-W/2)>W*.9)return;list.push({q,key,s,w:w||60})};
-  for(const id in STN){const s=STN[id];if(id==="solar"||id==="power"&&false)continue;add(s.x,s.y,id,s,s.poi?70:s.mod?70:50)}
-  [690,750,810].forEach((x,i)=>add(x+24,118,"_panel"+i,{panel:1},50));
-  S.crates.forEach((cr,k)=>add(704+k*26,500,"_crate"+k,{crate:typeof cr==="string"},24));
-  add(826,470,"_cap",{cap:1},30);
-  list.sort((a,b)=>b.q.z-a.q.z);
-  const labels=[];
-  for(const it of list){const {q}=it,k=f/q.z,hw=it.w*k/2*1.1,i0=Math.max(0,Math.floor((q.sx-hw)/cw)),i1=Math.min(n-1,Math.ceil((q.sx+hw)/cw));if(i1<i0)continue;
-    let any=false;for(let i=i0;i<=i1;i++)if(zb[i]>q.z-6){any=true;break}if(!any)continue;
-    c.save();c.beginPath();let run=-1;for(let i=i0;i<=i1+1;i++){const vis=i<=i1&&zb[i]>q.z-6;if(vis&&run<0)run=i;if(!vis&&run>=0){c.rect(run*cw,0,(i-run)*cw,H);run=-1}}c.clip();
-    c.translate(q.sx,q.gy);c.scale(k,k);c.shadowColor="rgba(0,0,0,.35)";
-    if(it.s.panel){c.strokeStyle="#9aa3bf";c.lineWidth=3;c.beginPath();c.moveTo(0,0);c.lineTo(0,-16);c.stroke();c.fillStyle="#173d96";c.beginPath();c.moveTo(-24,-16);c.lineTo(-18,-46);c.lineTo(26,-46);c.lineTo(24,-16);c.fill();c.strokeStyle="rgba(190,215,255,.6)";c.lineWidth=.8;for(let a=1;a<4;a++){c.beginPath();c.moveTo(-24+a*12,-16);c.lineTo(-18+a*11,-46);c.stroke()}c.fillStyle="rgba(176,142,92,"+Math.min(.6,S.dust/150)+")";c.fillRect(-24,-46,50,30)}
-    else if(it.s.crate!==undefined){fpBox(c,22,18,it.s.crate?"#5a8ad8":"#c08a4a",it.s.crate?"#2a4a90":"#7a4f1c");c.fillStyle="#fbbf24";c.fillRect(-2,-18,4,18)}
-    else if(it.s.cap){fpBox(c,28,36,"#e5e7eb","#9aa0b8");c.fillStyle="#6b4a2a";c.fillRect(-14,-6,28,6)}
-    else fpSpriteDraw(c,it.key,it.s,q.z);
-    c.restore();
-    if(q.z<420&&it.s.label){labels.push([q.sx,q.gy-(it.key.startsWith("poi_")?50:it.s.mod?58:44)*k-6,(it.s.poi&&!S.disc[it.key])?"Unknown site":it.s.label,q.z])}}
-  labels.forEach(l=>plate(c,l[0],Math.max(40,l[1]),l[2]));
-  // lunar night: headlamp
-  if(night){const lg=c.createRadialGradient(W/2,H*.8,20,W/2,H*.62,H*.95);lg.addColorStop(0,"rgba(0,0,10,.05)");lg.addColorStop(.5,"rgba(0,0,10,.55)");lg.addColorStop(1,"rgba(0,0,10,.9)");c.fillStyle=lg;c.fillRect(0,0,W,H)}
-  // helmet / vignette
-  const vg=c.createRadialGradient(W/2,H/2,H*.35,W/2,H/2,H*.95);vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(1,inside?"rgba(0,0,0,.4)":"rgba(0,0,0,.6)");c.fillStyle=vg;c.fillRect(0,0,W,H);
-  if(!inside){c.strokeStyle="rgba(255,255,255,.14)";c.lineWidth=3;c.beginPath();c.ellipse(W/2,H/2,W*.52,H*.62,0,0,6.3);c.stroke();c.fillStyle="rgba(255,255,255,.05)";c.beginPath();c.ellipse(W*.28,H*.18,60,16,-.5,0,6.3);c.fill()}
-  // crosshair + compass
-  c.strokeStyle="rgba(255,255,255,.7)";c.lineWidth=1.5;c.beginPath();c.moveTo(W/2-8,hz);c.lineTo(W/2-3,hz);c.moveTo(W/2+3,hz);c.lineTo(W/2+8,hz);c.moveTo(W/2,hz-8);c.lineTo(W/2,hz-3);c.moveTo(W/2,hz+3);c.lineTo(W/2,hz+8);c.stroke();
-  const hd=((yaw*180/Math.PI+90)%360+360)%360,dirs=["N","NE","E","SE","S","SW","W","NW"];
-  plate(c,W/2,H*.1+22,"HEADING "+dirs[Math.round(hd/45)%8]+" "+String(Math.round(hd)).padStart(3,"0")+"°  ·  "+(isOut(P.x,P.y)?"SURFACE":"HABITAT")+"  ·  "+clock());
-  if(P.near){const s=STN[P.near];plate(c,W/2,H*.62,"E · "+(s.poi&&!S.disc[P.near]?"Unknown site":s.label))}
-}
-
-/* ============ RENDERER (realistic top-down) ============ */
-function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-let BG=null,PART=[],ROCKS=[],DUSTPTS=[];
-const dayProg=()=>clamp(1-S.energy/MD().en,0,1);
-function clock(){const h=7+dayProg()*12;return String(Math.floor(h)).padStart(2,"0")+":"+String(Math.floor((h%1)*60)).padStart(2,"0")}
-function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
-function box(c,x,y,w,h,c1,c2,r){const g=c.createLinearGradient(x,y,x,y+h);g.addColorStop(0,c1);g.addColorStop(1,c2);c.fillStyle=g;rr(c,x,y,w,h,r===undefined?3:r);c.fill();c.strokeStyle="rgba(0,0,0,.5)";c.lineWidth=1;c.stroke()}
-function disc(c,x,y,r,c1,c2){const g=c.createRadialGradient(x-r*.35,y-r*.35,r*.1,x,y,r);g.addColorStop(0,c1);g.addColorStop(1,c2);c.fillStyle=g;c.beginPath();c.arc(x,y,r,0,6.3);c.fill()}
-function led(c,x,y,col){c.fillStyle=col;c.shadowColor=col;c.shadowBlur=8;c.beginPath();c.arc(x,y,2.6,0,6.3);c.fill();c.shadowBlur=0}
-function plate(c,x,y,t){c.font="8.5px Audiowide,sans-serif";const w=c.measureText(t).width+10;c.fillStyle="rgba(5,8,25,.7)";rr(c,x-w/2,y-7,w,13,4);c.fill();c.fillStyle="#e3e9ff";c.textAlign="center";c.textBaseline="middle";c.fillText(t,x,y);c.textAlign="left";c.textBaseline="alphabetic"}
-function plateL(c,x,y,t){c.font="8.5px Audiowide,sans-serif";const w=c.measureText(t).width+10;c.fillStyle="rgba(5,8,25,.7)";rr(c,x,y-7,w,13,4);c.fill();c.fillStyle="#e3e9ff";c.textBaseline="middle";c.fillText(t,x+5,y);c.textBaseline="alphabetic"}
-function buildBG(){
-  const o=document.createElement("canvas");o.width=1800;o.height=1080;const c=o.getContext("2d");c.scale(2,2);const R=mulberry(7);
-  // habitat footprint shadow
-  c.fillStyle="rgba(0,0,0,.4)";c.fillRect(26,38,552,484);
-  // floor plating
-  c.fillStyle="#2b3050";c.fillRect(20,30,550,480);
-  for(let x=30;x<550;x+=30)for(let y=40;y<500;y+=30){c.fillStyle=((x+y)/30)%2?"#2f3558":"#2b3154";c.fillRect(x+1,y+1,28,28);c.fillStyle="rgba(255,255,255,.07)";c.fillRect(x+1,y+1,28,1);c.fillRect(x+1,y+1,1,28);c.fillStyle="rgba(0,0,0,.25)";c.fillRect(x+1,y+28,28,1);c.fillRect(x+28,y+1,1,28);c.fillStyle="rgba(180,190,230,.25)";[[4,4],[25,4],[4,25],[25,25]].forEach(([a,b])=>c.fillRect(x+a,y+b,1.5,1.5))}
-  [[30,40,195,200,"#2a6a9a"],[231,40,164,200,"#8a6a30"],[401,40,149,200,"#4a52c0"],[30,300,195,200,"#7a4a9a"],[231,300,164,200,"#2f8a72"],[401,300,149,200,"#9a4a5a"]].forEach(r=>{c.globalAlpha=.22;c.fillStyle=r[4];c.fillRect(r[0],r[1],r[2],r[3]);c.globalAlpha=1});
-  c.fillStyle="#394070";c.fillRect(38,254,512,32);c.strokeStyle="rgba(251,191,36,.55)";c.setLineDash([10,8]);c.lineWidth=2;c.beginPath();c.moveTo(40,270);c.lineTo(548,270);c.stroke();c.setLineDash([]);
-  const stripes=(x,y,w,h)=>{c.save();c.beginPath();c.rect(x,y,w,h);c.clip();c.fillStyle="#1a1a1a";c.fillRect(x,y,w,h);c.fillStyle="#fbbf24";for(let i=-h;i<w+h;i+=10){c.beginPath();c.moveTo(x+i,y+h);c.lineTo(x+i+5,y+h);c.lineTo(x+i+5+h,y);c.lineTo(x+i+h,y);c.fill()}c.restore()};
-  [[105,254,40],[295,254,40],[455,254,40]].forEach(([x,y,w])=>stripes(x,y,w,3));[[105,283,40],[295,283,40],[445,283,40]].forEach(([x,y,w])=>stripes(x,y,w,3));
-  [[127,140],[310,140],[475,140],[127,400],[310,400],[475,400],[300,270]].forEach(([x,y])=>{const gr=c.createRadialGradient(x,y,0,x,y,110);gr.addColorStop(0,"rgba(255,244,220,.16)");gr.addColorStop(1,"rgba(255,244,220,0)");c.fillStyle=gr;c.fillRect(x-110,y-110,220,220)});
-  c.fillStyle="rgba(180,190,240,.35)";c.font="10px Audiowide,sans-serif";[[38,56,"LIFE SUPPORT"],[239,56,"GALLEY"],[409,56,"SCIENCE LAB"],[38,316,"GYM"],[239,316,"COMMS"],[409,316,"MED BAY & BUNKS"]].forEach(a=>c.fillText(a[2],a[0],a[1]));
-  c.fillStyle="rgba(180,190,240,.4)";c.fillText("CORRIDOR",250,266);
-  // pipes along top wall
-  [["#6ee7b7",44],["#60a5fa",49]].forEach(([col,y])=>{c.strokeStyle=col;c.globalAlpha=.55;c.lineWidth=2.5;c.beginPath();c.moveTo(34,y);c.lineTo(546,y);c.stroke();c.globalAlpha=1});
-  // walls
-  const wall=(x,y,w,h)=>{c.fillStyle="rgba(0,0,0,.4)";c.fillRect(x+3,y+4,w,h);const gr=c.createLinearGradient(x,y,x+w,y+h);gr.addColorStop(0,"#9aa7e0");gr.addColorStop(1,"#5f6ca6");c.fillStyle=gr;c.fillRect(x,y,w,h);c.fillStyle="rgba(255,255,255,.35)";c.fillRect(x,y,w,1.5)};
-  SOL.forEach(s=>wall(s[0],s[1],s[2],s[3]));wall(20,30,550,10);wall(20,500,550,10);wall(20,30,10,480);
-  // airlock
-  c.fillStyle="#3d4570";c.fillRect(550,250,56,40);stripes(552,252,52,3);stripes(552,285,52,3);
-  c.fillStyle="#fbbf24";c.fillRect(550,246,5,48);c.fillRect(601,246,5,48);
-  c.fillStyle="rgba(180,190,240,.5)";c.font="9px Audiowide,sans-serif";c.fillText("AIRLOCK",554,247);
-  // outer hull edge on right
-  c.fillStyle="#7c88c4";c.fillRect(558,40,2,210);c.fillRect(558,290,2,210);
-  const R3=mulberry(5);for(let i=0;i<3;i++){DUSTPTS.push([]);for(let k=0;k<70;k++)DUSTPTS[i].push([R3()*48,R3()*70,1.5+R3()*2.5])}
-  BG=o}
-function drawStn(c,id,s,SD){
-  const x=s.x,y=s.y;
-  const inside=x<552;
-  if(inside){c.fillStyle="rgba(0,0,0,.3)";rr(c,x-24+3,y-20+4,48,40,4);c.fill()}
-  if(id==="o2"){disc(c,x-13,y,11,"#e2e6f0","#7b8396");disc(c,x+13,y,11,"#e2e6f0","#7b8396");c.strokeStyle="#475066";c.lineWidth=1.5;c.beginPath();c.arc(x-13,y,11,0,6.3);c.stroke();c.beginPath();c.arc(x+13,y,11,0,6.3);c.stroke();c.strokeStyle="#6ee7b7";c.lineWidth=3;c.beginPath();c.moveTo(x-13,y-11);c.lineTo(x-13,y-19);c.lineTo(x+13,y-19);c.lineTo(x+13,y-11);c.stroke();disc(c,x,y+14,4,"#fff","#888")}
-  else if(id==="power"){box(c,x-24,y-14,48,28,"#3a3f55","#1c2030");for(let i=0;i<4;i++){box(c,x-21+i*11,y-11,9,22,"#4a5578","#2a3050",1);c.fillStyle=S.res.power>(i*25)?"#4ade80":"#3a3f55";c.fillRect(x-19+i*11,y-8,5,5)}c.strokeStyle="#fbbf24";c.lineWidth=1.5;c.strokeRect(x-24,y-14,48,28)}
-  else if(id==="water"){box(c,x-22,y-16,44,32,"#6bb2ff","#2860b8");c.strokeStyle="rgba(255,255,255,.5)";c.lineWidth=1;for(let i=1;i<4;i++){c.beginPath();c.moveTo(x-20,y-16+i*8);c.lineTo(x+20,y-16+i*8);c.stroke()}disc(c,x+12,y+20,5,"#ccc","#555");c.strokeStyle="#9ca3af";c.lineWidth=3;c.beginPath();c.moveTo(x-22,y);c.lineTo(x-28,y);c.stroke()}
-  else if(id==="food"){box(c,x-24,y-18,48,36,"#9a7650","#5b4326");disc(c,x-10,y-7,6,"#333","#000");disc(c,x+4,y-7,6,"#333","#000");c.strokeStyle="#fb923c";c.lineWidth=1.5;c.beginPath();c.arc(x-10,y-7,4,0,6.3);c.stroke();c.beginPath();c.arc(x+4,y-7,4,0,6.3);c.stroke();c.fillStyle="#2d5a2d";rr(c,x-22,y+3,44,13,2);c.fill();c.fillStyle="#6ee06e";for(let i=0;i<9;i++){c.beginPath();c.arc(x-18+i*4.6,y+9+(i%2)*2,2,0,6.3);c.fill()}}
-  else if(id==="lab"){box(c,x-27,y-17,54,34,"#d3daea","#8e98b4");[[-21,-13],[4,-13]].forEach(([a,b])=>{c.fillStyle="#08254a";c.fillRect(x+a,y+b,17,11);c.strokeStyle="#22d3ee";c.lineWidth=1;c.strokeRect(x+a,y+b,17,11);c.fillStyle="rgba(34,211,238,.5)";c.fillRect(x+a+2,y+b+3,10,1.5);c.fillRect(x+a+2,y+b+6,6,1.5)});disc(c,x-12,y+9,5.5,"#555","#1a1a1a");disc(c,x+6,y+9,3.5,"#4ade80","#14532d");disc(c,x+15,y+9,3.5,"#60a5fa","#1e3a8a")}
-  else if(id==="gym"){box(c,x-17,y-25,34,50,"#323648","#1b1e2b");c.strokeStyle="rgba(255,255,255,.15)";c.lineWidth=1;for(let i=0;i<8;i++){c.beginPath();c.moveTo(x-12,y-14+i*5);c.lineTo(x+12,y-14+i*5);c.stroke()}box(c,x-17,y-25,34,9,"#6b7280","#374151");c.fillStyle="#22d3ee";c.fillRect(x-8,y-23,16,4);c.fillStyle="#9ca3af";c.fillRect(x-20,y-12,3,30);c.fillRect(x+17,y-12,3,30)}
-  else if(id==="comms"){box(c,x-27,y-15,54,30,"#44566e","#27323f");[-20,-4,12].forEach((a,i)=>{c.fillStyle="#06231e";c.fillRect(x+a,y-12,13,10);c.strokeStyle=i===1?"#fbbf24":"#34d399";c.strokeRect(x+a,y-12,13,10)});disc(c,x,y+23,8,"#555","#111");c.fillStyle="#9ca3af";c.fillRect(x-20,y+4,40,3)}
-  else if(id==="med"){box(c,x-18,y-24,36,48,"#f4f6ff","#c3cbe6");box(c,x-14,y-21,28,12,"#fff","#dde2f5");c.fillStyle="#ef4444";c.fillRect(x-3,y-2,6,16);c.fillRect(x-8,y+3,16,6);c.fillStyle="#0a2a2a";c.fillRect(x+20,y-14,9,12);c.strokeStyle="#34d399";c.beginPath();c.moveTo(x+21,y-8);c.lineTo(x+24,y-12);c.lineTo(x+26,y-5);c.lineTo(x+28,y-8);c.stroke()}
-  else if(id==="bunk"){box(c,x-18,y-23,36,46,"#7d8bb8","#4a5584");box(c,x-14,y-20,28,12,"#fff","#d8dcec");box(c,x-14,y-6,28,26,"#3b6fd8","#24459a");c.strokeStyle="rgba(255,255,255,.3)";c.beginPath();c.moveTo(x-14,y+2);c.lineTo(x+14,y+2);c.stroke()}
-  else if(id==="rest"){box(c,x-24,y-18,48,36,"#181e3c","#0c1128");disc(c,x,y,12,"#bfe0ff","#1e4fa8");c.fillStyle="rgba(74,222,128,.7)";c.beginPath();c.ellipse(x-3,y-2,4,3,.5,0,6.3);c.fill();c.fillStyle="#fff";[[x-18,y-12],[x+16,y+10],[x+14,y-12],[x-16,y+11]].forEach(p=>c.fillRect(p[0],p[1],1.5,1.5));c.strokeStyle="#6b78b8";c.lineWidth=2;c.strokeRect(x-24,y-18,48,36)}
-  else if(id==="dustoff"){box(c,x-12,y-17,24,34,"#262b3f","#14172a");c.strokeStyle="#6b78b8";c.lineWidth=1;for(let i=0;i<7;i++){c.beginPath();c.moveTo(x-10,y-14+i*4.6);c.lineTo(x+10,y-14+i*4.6);c.stroke()}c.fillStyle="#d97706";c.fillRect(x-12,y-2,24,4);led(c,x,y-20,S.suitDust>30?"#f87171":"#4ade80")}
-  else if(id==="solar"){/* panels drawn elsewhere */}
-  else if(id==="shelter"){const w=26+S.armor*5,h=20+S.armor*3;c.fillStyle="rgba(0,0,0,.42)";c.beginPath();c.ellipse(x+SD.x,y+SD.y,w,h,0,0,6.3);c.fill();disc(c,x,y,w,"#a69880","#6e6350");c.save();c.beginPath();c.ellipse(x,y,w,h,0,0,6.3);c.clip();c.fillStyle="#948772";c.strokeStyle="rgba(0,0,0,.35)";const n=4+S.armor*3;for(let i=0;i<n;i++){const bx=x-w+8+(i%4)*(w/2),by=y-h+6+Math.floor(i/4)*9;rr(c,bx,by,13,7,2);c.fill();c.stroke()}c.restore()}
-  else if(id==="isru"){c.fillStyle="rgba(0,0,0,.4)";rr(c,x-20+SD.x,y-16+SD.y,40,32,3);c.fill();box(c,x-20,y-16,40,32,"#8b94ae","#59627c");disc(c,x-7,y,9,"#d6dae8","#6b7390");c.strokeStyle="#333";c.lineWidth=1.5;for(let i=0;i<3;i++){const a=P.t*3+i*2.09;c.beginPath();c.moveTo(x-7,y);c.lineTo(x-7+Math.cos(a)*8,y+Math.sin(a)*8);c.stroke()}c.fillStyle="#fbbf24";c.fillRect(x+6,y-12,10,6);c.strokeStyle="#cbd0e6";c.lineWidth=3;c.beginPath();c.moveTo(x+20,y+2);c.lineTo(x+34,y-10);c.stroke()}
-  else if(id==="field"){c.strokeStyle="rgba(0,0,0,.45)";c.lineWidth=2.5;[[-12,12],[12,12],[0,-14]].forEach(a=>{c.beginPath();c.moveTo(x,y);c.lineTo(x+a[0]+SD.x*.5,y+a[1]+SD.y*.5);c.stroke()});c.strokeStyle="#cbd0e6";c.lineWidth=2;[[-12,12],[12,12],[0,-14]].forEach(a=>{c.beginPath();c.moveTo(x,y);c.lineTo(x+a[0],y+a[1]);c.stroke()});box(c,x-6,y-6,12,12,"#e5e7eb","#9aa3bf");disc(c,x,y,3,"#22d3ee","#0e7490");[[-26,14,8],[22,-12,7],[-20,-16,5],[26,16,6]].forEach(a=>{c.fillStyle="rgba(0,0,0,.4)";c.beginPath();c.ellipse(a[0]+x+SD.x*.4,a[1]+y+SD.y*.4,a[2],a[2]*.8,0,0,6.3);c.fill();disc(c,x+a[0],y+a[1],a[2],"#c3c6d6","#5d6180")});c.strokeStyle="#ddd";c.lineWidth=2;c.beginPath();c.moveTo(x+32,y+22);c.lineTo(x+32,y-6);c.stroke();c.fillStyle="#2563eb";c.fillRect(x+32,y-6,14,9);c.fillStyle="#fff";c.fillRect(x+32,y-3,14,2)}
-  else if(id==="pad"){disc(c,x,y,50,"rgba(0,0,0,.28)","rgba(0,0,0,0)");[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(a=>{c.strokeStyle="rgba(0,0,0,.4)";c.lineWidth=3;c.beginPath();c.moveTo(x+a[0]*20+SD.x*.6,y+a[1]*20+SD.y*.6);c.lineTo(x+a[0]*38+SD.x*.9,y+a[1]*38+SD.y*.9);c.stroke();c.strokeStyle="#cbd0e6";c.lineWidth=3;c.beginPath();c.moveTo(x+a[0]*20,y+a[1]*20);c.lineTo(x+a[0]*38,y+a[1]*38);c.stroke();disc(c,x+a[0]*38,y+a[1]*38,4,"#ddd","#777")});c.fillStyle="rgba(0,0,0,.4)";c.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4+Math.PI/8;c.lineTo(x+SD.x+Math.cos(a)*30,y+SD.y+Math.sin(a)*30)}c.fill();let gr=c.createRadialGradient(x-8,y-8,2,x,y,30);gr.addColorStop(0,"#f1f3fa");gr.addColorStop(1,"#9aa0b8");c.fillStyle=gr;c.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4+Math.PI/8;c.lineTo(x+Math.cos(a)*30,y+Math.sin(a)*30)}c.closePath();c.fill();c.strokeStyle="#6b7390";c.lineWidth=1.5;c.stroke();disc(c,x,y,14,"#e2b04a","#8a5f10");disc(c,x,y,6,"#8ec5ff","#1e4fa8");c.fillStyle="#fff";c.font="7px Audiowide,sans-serif";c.textAlign="center";c.fillText("OUTPOST 7",x,y+24);c.textAlign="left"}
-}
-function draw(){
-  const cv=$("#wc");if(!cv)return;const c=cv.getContext("2d");
-  if(!BG)buildBG();if(!GPAT)buildWorld();
-  c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,cv.width,cv.height);
-  if(FPV){c.setTransform(2,0,0,2,0,0);drawFP(c);drawMinimap(c);return}
-  c.setTransform(2,0,0,2,-2*CAM.x,-2*CAM.y);
-  c.fillStyle=GPAT;c.fillRect(CAM.x,CAM.y,VW,VH);drawBiomes(c);drawCraters(c);c.drawImage(BG,0,0,900,540);
-  const pr=dayProg(),L=.55+Math.abs(pr-.5)*1.7,SD={x:(.5-pr)*52*L+ (pr===.5?0:0),y:7*L};
-  // rocks
-  ROCKS.forEach(r=>{if(!vis(r[0],r[1],20))return;c.fillStyle="rgba(0,0,0,.42)";c.beginPath();c.ellipse(r[0]+SD.x*r[2]/6,r[1]+SD.y*r[2]/6,r[2]*1.1,r[2]*.8,0,0,6.3);c.fill();disc(c,r[0],r[1],r[2],"#c8cad9","#5a5d74")});
-  c.fillStyle="rgba(255,255,255,.14)";P.trail.forEach(t=>{c.beginPath();c.ellipse(t.x,t.y,3.2,1.9,0,0,6.3);c.fill();c.fillStyle="rgba(0,0,0,.12)";c.beginPath();c.ellipse(t.x+1,t.y+1,3.2,1.9,0,0,6.3);c.fill();c.fillStyle="rgba(255,255,255,.14)"});
-  // solar panels
-  [690,750,810].forEach((x,k)=>{c.fillStyle="rgba(0,0,0,.42)";c.beginPath();c.moveTo(x,118);c.lineTo(x+48,118);c.lineTo(x+48+SD.x*2,118+SD.y*3);c.lineTo(x+SD.x*2,118+SD.y*3);c.fill();c.fillStyle="#0e1d3d";c.fillRect(x-2,46,52,74);const gr=c.createLinearGradient(x,48,x+48,118);gr.addColorStop(0,"#2f6bd8");gr.addColorStop(1,"#173d96");c.fillStyle=gr;c.fillRect(x,48,48,70);c.strokeStyle="rgba(190,215,255,.55)";c.lineWidth=.7;for(let i=1;i<5;i++){c.beginPath();c.moveTo(x,48+i*14);c.lineTo(x+48,48+i*14);c.stroke()}for(let i=1;i<4;i++){c.beginPath();c.moveTo(x+i*12,48);c.lineTo(x+i*12,118);c.stroke()}
-    c.fillStyle="rgba(255,255,255,.14)";c.beginPath();c.moveTo(x,48);c.lineTo(x+22,48);c.lineTo(x,76);c.fill();
-    c.fillStyle="rgba(176,142,92,"+Math.min(.5,S.dust/180).toFixed(2)+")";c.fillRect(x,48,48,70);const n=Math.round(S.dust*.7);c.fillStyle="rgba(196,166,118,.7)";for(let i=0;i<n&&i<70;i++){const d=DUSTPTS[k][i];c.beginPath();c.arc(x+d[0],48+d[1],d[2],0,6.3);c.fill()}});
-  // stations
-  for(const id in STN){const q=STN[id];if(!vis(q.x,q.y,100))continue;if(q.poi)drawPoi(c,q,SD);else if(q.mod)drawModule(c,q,SD);else drawStn(c,id,q,SD)}
-  // crates
-  S.crates.forEach((i,k)=>{const x=692+k*26,y=492,m=typeof i==="string";c.fillStyle="rgba(0,0,0,.4)";c.fillRect(x+SD.x*.4,y+SD.y*.5,22,18);box(c,x,y,22,18,m?"#5a8ad8":"#c08a4a",m?"#2a4a90":"#7a4f1c",2);c.fillStyle="#fbbf24";c.fillRect(x+9,y,4,18);c.strokeStyle="rgba(0,0,0,.3)";c.beginPath();c.moveTo(x,y+9);c.lineTo(x+22,y+9);c.stroke()});
-  {const f=STN.field;S.samples.forEach((id,k)=>{const col=SC[id],tx=f.x-34+k*9,ty=f.y+32;c.fillStyle="rgba(0,0,0,.4)";c.fillRect(tx+SD.x*.3,ty+SD.y*.3,6,12);box(c,tx,ty,6,12,"#dbeafe","#93c5fd",2);c.fillStyle=col;c.fillRect(tx+1,ty+5,4,6)});
-    const pc={x:826,y:470};c.fillStyle="rgba(0,0,0,.4)";c.beginPath();c.ellipse(pc.x+SD.x*.6,pc.y+SD.y*.6,16,12,0,0,6.3);c.fill();box(c,pc.x-14,pc.y-18,28,36,"#e5e7eb","#9aa0b8",8);c.fillStyle="#6b4a2a";c.fillRect(pc.x-14,pc.y+10,28,8);for(let i=0;i<MD().samp;i++)led(c,pc.x-9+(i%4)*6,pc.y-12+Math.floor(i/4)*8,i<S.loaded.length?"#4ade80":"#6b7280");plate(c,pc.x,pc.y+30,"Return capsule")}
-  // plates and lamps
-  for(const id in STN){const s=STN[id];if(!vis(s.x,s.y,60))continue;const ly=id==="solar"?s.y+24:id==="pad"?s.y+52:id==="shelter"?s.y+36:id==="field"?s.y+34:s.y+30;plate(c,s.x,s.poi?s.y+(s.poi.kind==="ice"?82:58):s.mod?s.y+40:ly,s.poi&&!S.disc[id]?"Unknown site":s.label);const lc=lampCol(id);if(lc)led(c,s.x+(id==="solar"?20:22),s.y-(id==="solar"?10:19),lc)}
-  if(P.near){const s=STN[P.near];c.strokeStyle="#ffb347";c.lineWidth=2;c.globalAlpha=.55+.45*Math.sin(P.t*6);c.beginPath();c.arc(s.x,s.y,34,0,6.3);c.stroke();c.globalAlpha=1}
-  // dust puffs
-  PART.forEach(p=>{c.fillStyle=`rgba(210,205,195,${(p.l*.5).toFixed(2)})`;c.beginPath();c.arc(p.x,p.y,3+(1-p.l)*5,0,6.3);c.fill()});
-  drawPlayer(c,SD);
-  if(S.carry){const k=MODK[S.carry];c.fillStyle="rgba(5,8,25,.75)";rr(c,P.x-14,P.y-38,28,20,5);c.fill();c.font="14px sans-serif";c.textAlign="center";c.textBaseline="middle";c.fillStyle="#fff";c.fillText(k.icon,P.x,P.y-28);c.textAlign="left";c.textBaseline="alphabetic"}
-  // lighting
-  c.fillStyle=`rgba(255,140,60,${(Math.pow(pr,3)*.16).toFixed(3)})`;c.beginPath();c.rect(CAM.x,CAM.y,VW,VH);c.rect(20,30,540,480);c.fill("evenodd");
-  if(!sunUp()){const g2=c.createRadialGradient(P.x,P.y,90,P.x,P.y,420);g2.addColorStop(0,"rgba(0,0,12,0)");g2.addColorStop(.6,"rgba(0,0,12,.55)");g2.addColorStop(1,"rgba(0,0,12,.82)");c.fillStyle=g2;c.beginPath();c.rect(CAM.x,CAM.y,VW,VH);c.rect(20,30,540,480);c.fill("evenodd")}
-  if(S.res.power<25&&Math.sin(P.t*17)>.75){c.fillStyle="rgba(0,0,10,.28)";c.fillRect(20,30,540,480)}
-  c.setTransform(2,0,0,2,0,0);
-  const vg=c.createRadialGradient(VW/2,VH/2,VH*.5,VW/2,VH/2,VW*.65);vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(1,"rgba(0,0,0,.4)");c.fillStyle=vg;c.fillRect(0,0,VW,VH);
-  plateL(c,8,16,(isOut(P.x,P.y)?"SURFACE · "+(Math.round(Math.hypot(P.x-760,P.y-450)*1.5/10)*10)+" m from pad · suit dust "+Math.round(S.suitDust)+"%":"HABITAT"+(S.cabinDust>0?" · cabin dust "+Math.round(S.cabinDust)+"%":""))+"   "+clock());
-  drawMinimap(c);
-}
-function drawPlayer(c,SD){
-  const out=isOut(P.x,P.y),mv=P.moving,ph=P.t*(out?7:10),bob=mv?Math.abs(Math.sin(ph))*(out?4.5:3):0,x=P.x,y=P.y-bob,ang=Math.atan2(P.fy,P.fx),px=-Math.sin(ang),py=Math.cos(ang);
-  c.fillStyle="rgba(0,0,0,"+(out?.45:.3)+")";c.beginPath();c.ellipse(x+SD.x*(out?.55:.2),P.y+5+SD.y*.5*(out?1:.3),out?13:10,5,0,0,6.3);c.fill();
-  const sw=mv?Math.sin(ph)*5:0;
-  // legs
-  c.fillStyle=out?"#dfe3ee":"#2b6fb0";c.beginPath();c.ellipse(x+px*4+Math.cos(ang)*sw,y+py*4+Math.sin(ang)*sw,3.6,3.6,0,0,6.3);c.fill();c.beginPath();c.ellipse(x-px*4-Math.cos(ang)*sw,y-py*4-Math.sin(ang)*sw,3.6,3.6,0,0,6.3);c.fill();
-  // backpack
-  if(out){c.save();c.translate(x,y);c.rotate(ang+Math.PI);box(c,2,-8,10,16,"#e9ebf3","#a4a9bd",3);c.fillStyle="#38bdf8";c.fillRect(5,-3,3,6);c.restore()}
-  // torso + arms
-  disc(c,x,y,out?11:9,out?"#ffffff":"#5ab4ff",out?"#aeb4c8":"#2b6fb0");
-  c.fillStyle=out?"#e6e9f2":"#4aa0f0";c.beginPath();c.arc(x+px*11-Math.cos(ang)*sw*.6,y+py*11-Math.sin(ang)*sw*.6,3,0,6.3);c.fill();c.beginPath();c.arc(x-px*11+Math.cos(ang)*sw*.6,y-py*11+Math.sin(ang)*sw*.6,3,0,6.3);c.fill();
-  // head / helmet
-  const hx=x+Math.cos(ang)*3,hy=y+Math.sin(ang)*3;
-  if(out){disc(c,hx,hy,7,"#ffffff","#b8bdd0");c.save();c.translate(hx,hy);c.rotate(ang);const g=c.createLinearGradient(2,-4,7,4);g.addColorStop(0,"#f5c451");g.addColorStop(1,"#8a5a10");c.fillStyle=g;c.beginPath();c.ellipse(3.5,0,3.6,4.6,0,0,6.3);c.fill();c.fillStyle="rgba(255,255,255,.55)";c.beginPath();c.ellipse(2.5,-2,1.3,1.8,0,0,6.3);c.fill();c.restore()}
-  else{disc(c,hx,hy,6,"#f6d9b8","#c9966a");c.fillStyle="#3b2a1a";c.beginPath();c.arc(hx-Math.cos(ang)*1.5,hy-Math.sin(ang)*1.5,5.5,Math.PI*.2+ang+Math.PI*.5,Math.PI*1.8+ang+Math.PI*.5);c.fill()}
-}
-let VW=900,VH=540,FPV=false,DRAG=null;
-const TABS=[["chores","🛠️","Survive"],["science","🔬","Science"],["mission","🎯","Mission"],["build","🏗️","Build"],["base","📊","Base"],["archive","📜","Archive"]];
-function renderBase(){return `<div class="stage" id="stage"><canvas id="wc" width="1800" height="1080" aria-label="Outpost 7 world"></canvas>
-  <div id="hud" class="hud"></div><div id="panel" class="panel" hidden></div><div id="pop" class="pop" hidden></div>
-  <div class="dpad"><button id="dU" aria-label="forward">▲</button><button id="dL" aria-label="left">◀</button><button id="dD" aria-label="back">▼</button><button id="dR" aria-label="right">▶</button></div>
-  <div class="actbtns"><button id="useBtn" class="primary" onclick="useNear()">Walk to a station</button><button id="placeBtn" class="primary" onclick="placeModule()" hidden>Place</button></div>
-  <div id="bar" class="hotbar"></div></div>`}
-function sizeCanvas(){const cv=$("#wc"),st=$("#stage");if(!cv||!st)return;const w=st.clientWidth,h=st.clientHeight;if(!w||!h)return;VH=540;VW=clamp(Math.round(540*w/h),520,1500);cv.width=VW*2;cv.height=VH*2}
-window.addEventListener("resize",()=>{if(V==="base")sizeCanvas()});
-function toggleTab(t){TAB=TAB===t?null:t;renderSide()}
-function toggleFP(){FPV=!FPV;if(FPV)P.yaw=Math.atan2(P.fy,P.fx);for(const k in K)K[k]=false;closePop();P.path=[];P.pending=null;renderSide();toast(FPV?"First-person view. W/S walk, A/D strafe, arrows or drag to look. Press V to go back.":"Top-down view.")}
-function initWorld(){
-  const cv=$("#wc");sizeCanvas();
-  cv.addEventListener("pointerdown",e=>{if(POP)return;const r=cv.getBoundingClientRect();
-    if(FPV){DRAG={x:e.clientX,moved:0};try{cv.setPointerCapture(e.pointerId)}catch(_){}return}
-    const x=(e.clientX-r.left)/r.width*VW+CAM.x,y=(e.clientY-r.top)/r.height*VH+CAM.y;
-    for(const id in STN){if(Math.hypot(STN[id].x-x,STN[id].y-y)<34){goStation(id);return}}
-    if(ok(x,y))walkTo(x,y)});
-  cv.addEventListener("pointermove",e=>{if(FPV&&DRAG){const dx=e.clientX-DRAG.x;DRAG.x=e.clientX;DRAG.moved+=Math.abs(dx);P.yaw+=dx*0.006}});
-  cv.addEventListener("pointerup",()=>{DRAG=null});cv.addEventListener("pointercancel",()=>{DRAG=null});
-  [["dU","u"],["dD","d"],["dL","l"],["dR","r"]].forEach(([id,k])=>{const b=$("#"+id);b.addEventListener("pointerdown",e=>{const kk=FPV&&k==="l"?"rl":FPV&&k==="r"?"rr":k;b._kk=kk;K[kk]=true;e.preventDefault()});["pointerup","pointerleave","pointercancel"].forEach(ev=>b.addEventListener(ev,()=>{if(b._kk)K[b._kk]=false;b._kk=null}))});
-  P.near=null;syncStn();CAM.x=clamp(P.x-VW/2,0,WORLD_W-VW);CAM.y=clamp(P.y-VH/2,0,WORLD_H-VH);RS={};renderSide();updateUse();startLoop();
-}
-const KM={arrowup:"u",w:"u",arrowdown:"d",s:"d",arrowleft:"l",a:"l",arrowright:"r",d:"r"};
-window.addEventListener("keydown",e=>{if(V!=="base")return;const k=e.key.toLowerCase();
-  if(k==="v"){toggleFP();e.preventDefault();return}
-  if(k>="1"&&k<="6"){toggleTab(TABS[+k-1][0]);return}
-  let m=KM[k];if(FPV&&(k==="arrowleft"||k==="arrowright"))m=k==="arrowleft"?"rl":"rr";
-  if(m){K[m]=true;e.preventDefault()}else if(k==="e"||k===" "||k==="enter"){if(!POP||k==="e"){useNear();e.preventDefault()}}else if(k==="escape"){closePop();TAB=null;renderSide()}else if(k==="b")placeModule()});
-window.addEventListener("keyup",e=>{const k=e.key.toLowerCase(),m=KM[k];if(m)K[m]=false;if(k==="arrowleft")K.rl=false;if(k==="arrowright")K.rr=false});
-let RS={};
-/* ============ SIDEBAR ============ */
-function renderSide(){
-  const hud=$("#hud");if(!hud)return;const free=MD().free;
-  let body="";
-  if(!TAB)body="";else if(TAB==="chores")body=CH.map(c=>{const maxed=c.max&&S.armor>=c.max;const fx=Object.entries(c.fx).filter(([k])=>k!=="armor"&&k!=="dust").map(([k,v])=>RIC[k]+(v>0?"+":"")+v).join(" ");return `<button class="opt" ${S.energy<c.e||maxed?"disabled":""} onclick="goChore('${c.id}')">${c.icon} ${esc(c.n)} <span class="small muted">⚡${c.e} ${fx}${c.id==="dust"?" 🧹":""}${c.id==="shelter"?" 🛡️+1":""}</span><span class="ctx">${OUTCH[c.id]?"🌑 Outside · ":"🏠 Inside · "}${esc(c.ctx)}</span></button>`}).join("");
-  else if(TAB==="science")body=`<p class="small muted">Walk to the lab (inside) or field site (outside). Tasks use energy and power. Points depend on complexity, price and value. More unlock on days 3 and 5.</p>`+ACT.map((a,i)=>{const dn=S.done[i],lock=unlockDay(a)>S.day,pc=Math.ceil(a[2]/4),dis=dn||lock||S.energy<a[1];return `<button class="opt" style="opacity:${dn?.55:1}" ${dis?"disabled":""} onclick="goSci(${i})"><b>${esc(a[0])}</b> <span class="tag">${isOutSci(a)?"🌑 field":"🔬 lab"}</span><span class="tag">⚡${a[1]}</span><span class="tag">power -${pc}</span><span class="tag good">+${actPts(a)} SP</span>${lock?`<span class="tag">unlocks day ${unlockDay(a)}</span>`:""}${dn?`<span class="ctx">${esc(a[5])}</span>`:""}</button>`}).join("");
-  else if(TAB==="mission"){const req=MD().samp,col=S.samples.length,ld=S.loaded.length,ns=S.over&&S.over.win?NIGHTS:S.day-1;const g=(k,t)=>`<p class="small ${k?"good":""}">${k?"✅":"⬜"} ${t}</p>`;
-    body=`<p><b>Mission goals</b></p>${g(ns>=NIGHTS,"Survive "+NIGHTS+" days ("+ns+"/"+NIGHTS+")")}${g(col>=req,"Collect "+req+" rock samples ("+col+"/"+req+")")}${g(ld>=req,"Load them into the return capsule ("+ld+"/"+req+")")}<p class="small muted">The Moon is an open world. Samples come from 8 different places. Travel costs time and suit oxygen.</p>`+
-    SAMPLES.map(t=>{const got=S.samples.includes(t.id);return `<button class="opt" ${got||S.energy<2?"disabled":""} onclick="goSampleType('${t.id}')">${t.icon} ${esc(t.n)} ${got?(S.loaded.includes(t.id)?"📦 loaded":"🎒 carried"):""}<span class="ctx">📍 ${esc(where(t.id))}${S.disc[SITEFOR[t.id]]||t.id==="regolith"?"":" (unexplored)"} · ⚡2${got?" · "+esc(t.fact):""}</span></button>`}).join("")+
-    `<button class="opt" ${S.energy<1||ld>=col?"disabled":""} onclick="goLoad()">📦 Load samples into the capsule <span class="tag">⚡1</span><span class="ctx">🌑 At the landing pad.</span></button><p class="small muted">Other places to explore: the wrecks of Outposts 1 to 6 and a lava tube cave.</p>`}
-  else if(TAB==="archive"){body=`<p class="small muted">Mission Control files on the six lost crews. Find each wreck on the map and search it to read the crew's last logs. Read: <b>${storiesFound()}/6</b>.</p>`+STORIES.map(st=>{const f=S.poi["poi_wreck"+st.n];return `<div class="card" style="margin:6px 0"><b>🕯️ Outpost ${st.n} “${esc(st.name)}”</b><br><span class="small muted">${st.crew.map(esc).join(" · ")} · lost on night ${st.night}</span><p class="small">${f?"":esc(st.head)+"<br><span class=muted>Logs unread. Wreck: "+esc(stnWhere("poi_wreck"+st.n))+(S.disc["poi_wreck"+st.n]?"":" (unexplored)")+".</span>"}</p>${f?`<div class="small">${st.logs.map(l=>`<p><b>${esc(l[0])}</b> ${esc(l[1])}</p>`).join("")}<div class="debrief"><b>${esc(st.real[0])}</b><br>${esc(st.real[1])}</div></div>`:""}</div>`}).join("")}
-  else if(TAB==="build")body=`<p class="small muted">Order a crate from Mission Control with Science Points. It lands on the pad outside. You have <b>${S.sp} SP</b>.</p>`+SUP.map((s,i)=>`<button class="opt" ${S.sp<s.cost&&!free?"disabled":""} onclick="buySup(${i})">${esc(s.n)} <span class="tag">${free?"free":s.cost+" SP"}</span><span class="ctx">${esc(s.ctx)}</span></button>`).join("")+(S.crates.length?`<p class="small"><b>Crates waiting on the pad:</b></p>`+S.crates.map((i,k)=>`<button class="opt" onclick="goCrate(${k})">${typeof i==="string"?"🏗️":"📦"} ${esc(crateName(i))} <span class="ctx">Walk to the landing pad and open it.</span></button>`).join(""):"")+`<p class="small"><b>🏗️ Module kits</b> <span class="muted">Order a kit, open it at the pad, carry it anywhere outside and place it (max 2 of each, 1 for the rover garage).</span></p>`+Object.keys(MODK).map(k=>{const m=MODK[k],have=S.modules.filter(x=>x.t===k).length+S.crates.filter(c=>c==="m:"+k).length+(S.carry===k?1:0);return `<button class="opt" ${(S.sp<m.cost&&!free)||have>=(m.max||MODMAX)?"disabled":""} onclick="buyModule('${k}')">${m.icon} ${esc(m.n)} <span class="tag">${free?"free":m.cost+" SP"}</span><span class="tag">${have}/${m.max||MODMAX}</span><span class="ctx">${esc(m.d)}</span></button>`}).join("")+`<button class="opt" ${S.energy<1?"disabled":""} onclick="goQuiz()">❓ Mission Control quiz <span class="tag">⚡1</span><span class="ctx">Walk to the comms console and answer questions for Science Points.</span></button>`;
-  else{const dr=MD().dr,gen=sunUp()?Math.round(DAY.gen*(1-S.dust/100)):0,use=Math.round(DAY.use*dr);body=`<div class="small"><p><b>${sunUp()?"☀️ Lunar day":"🌑 Lunar night"} · Day ${S.day} of ${NIGHTS}</b></p><p>${sunUp()?"Sunlit days left: "+(LDAY-S.day+1):"Dark days left: "+(NIGHTS-S.day+1)}</p><p>⚡ Solar today: +${gen}${sunUp()?"":" (no sunlight)"}, base use −${use}. Panels ${Math.round(S.dust)}% dusty. Power storage ${Math.round(S.res.power)}/${capP()}.</p><p>🌙 Each day and night together use about 🫧 −${Math.round((DAY.o2+NIGHT.o2)*dr)} 💧 −${Math.round((DAY.water+NIGHT.water)*dr)} 🍲 −${Math.round((DAY.food+NIGHT.food)*dr)}, and the heaters use ⚡ −${Math.round(NIGHT.power*dr)}.</p><p>🛡️ Shelter armor ${S.armor}/3 · 🧤 Suit dust ${Math.round(S.suitDust)}% · Cabin dust ${Math.round(S.cabinDust)}%</p><p>🏗️ Modules: ${S.modules.length?S.modules.map(m=>MODK[m.t].icon+" "+MODK[m.t].n).join(", "):"none yet"}</p><p>⭐ ${S.sp} SP · Mission Control sends +5 SP every day.</p><p class="muted">The Six Lost Outposts: dead by CO₂, dust storm, solar flare, meteorite, cold and despair. Do not be number seven.</p></div><div class="debrief"><b>📡 NASA data behind this game</b>${NASA.map(n=>`<p class="small"><b>${esc(n[0])}.</b> ${esc(n[1])}</p>`).join("")}</div>`+(free?`<button class="sm" onclick="S.res={o2:100,water:100,food:100,power:100,health:100,morale:100};S.dust=0;S.cabinDust=0;save();refresh()">🧪 Refill all</button>`:"")+(S.log.length?`<div class="log" style="margin-top:8px">${S.log.map(l=>`<p>${esc(l)}</p>`).join("")}</div>`:"")}
-  const cap=capP();
-  const bar=r=>{const v=S.res[r[0]],m=r[0]==="power"?cap:100,pc=Math.max(0,Math.min(100,v/m*100));return `<div class="hb" title="${r[2]}"><span>${r[1]} ${Math.round(v)}</span><div class="bar ${pc<25?"danger":pc<50?"warn":""}"><i style="width:${pc}%"></i></div></div>`};
-  const temp=isOut(P.x,P.y)?surfaceTemp()+" °C outside":"21 °C inside";
-  const hh=`<div class="hrow"><span class="hchip strong">🌑 Day ${S.day}/${NIGHTS}</span><span class="hchip">${sunUp()?"☀️ Lunar day · "+(LDAY-S.day+1)+" left":"🌑 Lunar night · "+(NIGHTS-S.day+1)+" left"}</span><span class="hchip">🕒 ${clock()}</span><span class="hchip">🌡️ ${temp}</span><span class="hchip">⚡ ${S.energy}h</span><span class="hchip">⭐ ${S.sp} SP</span><span class="hchip">🛡️ ${S.armor}/3</span></div><div class="hbars">${RES.map(bar).join("")}</div>${tip()}`;
-  if(RS.hud!==hh){hud.innerHTML=hh;RS.hud=hh}
-  const bb=TABS.map((t,i)=>`<button class="${TAB===t[0]?"primary":""}" onclick="toggleTab('${t[0]}')" title="Key ${i+1}">${t[1]} ${t[2]}</button>`).join("")+`<button class="${FPV?"primary":""}" onclick="toggleFP()">👁️ ${FPV?"Top view":"First person"} (V)</button><button onclick="goBed()">🛏️ Bed</button>`;
-  const brEl=$("#bar");if(brEl&&RS.bar!==bb){brEl.innerHTML=bb;RS.bar=bb}
-  const pn=$("#panel");
-  if(pn){if(!TAB){if(!pn.hidden){pn.hidden=true;pn.innerHTML="";RS.panel=""}}else{const tt=TABS.find(t=>t[0]===TAB),pp=`<div class="phead"><b>${tt[1]} ${tt[2]}</b><button class="sm" onclick="TAB=null;renderSide()">✕</button></div><div class="pbody">${body}</div>`;if(RS.panel!==pp){const ob=pn.querySelector(".pbody"),ot=ob?ob.scrollTop:0;pn.hidden=false;pn.innerHTML=pp;RS.panel=pp;const nb=pn.querySelector(".pbody");if(nb)nb.scrollTop=ot}}}
-}
-function doChore(id){const c=CH.find(x=>x.id===id);if(S.energy<c.e){toast("Not enough energy. Go to bed to end the day.");return}S.energy-=c.e;let t=applyFx(c.fx,0);if(OUTCH[id]){S.res.o2=clamp(S.res.o2-3);S.suitDust=clamp(S.suitDust+25);t+="  🫧 -3 (suit)"}log(c.icon+" "+c.n+(t?" → "+t:""));toast(c.fact);save();refresh()}
-function doSci(i){const a=ACT[i],pc=Math.ceil(a[2]/4);if(S.done[i]||S.energy<a[1])return;S.energy-=a[1];S.res.power=clamp(S.res.power-pc);S.res.morale=clamp(S.res.morale+2);if(isOutSci(a)){S.res.o2=clamp(S.res.o2-3);S.suitDust=clamp(S.suitDust+25)}S.done[i]=1;const pts=actPts(a);S.sp+=pts;log("🔬 "+a[0]+" → +"+pts+" SP");toast("+"+pts+" SP: "+a[5]);save();refresh()}
-function buySup(i){const s=SUP[i],free=MD().free;if(!free&&S.sp<s.cost)return;if(!free)S.sp-=s.cost;S.crates.push(i);log("📦 Ordered "+s.n+". It lands on the pad.");toast("A crate is landing at the pad outside!");save();refresh()}
-
-function endDay(){
-  P.path=[];P.pending=null;closePop();S.exh=0;
-  const dr=MD().dr,r=S.res,gen=sunUp()?Math.round(DAY.gen*(1-S.dust/100)):0,use=Math.round(DAY.use*dr);
-  r.o2-=Math.round(DAY.o2*dr);r.water-=Math.round(DAY.water*dr);r.food-=Math.round(DAY.food*dr);r.power+=gen-use;r.health-=Math.round(DAY.health*dr);r.morale-=DAY.morale;
-  log((sunUp()?"☀️ Day ":"🌑 Day ")+S.day+" ends: "+(sunUp()?"solar gave +"+gen+" power ("+S.dust+"% dust)":"no sunlight (lunar night)")+", base used "+use+".");
-  S.dust=clamp(S.dust+DAY.dust);clampRes();
-  if(S.modules.length){const out=[];for(const m of S.modules){const k=MODK[m.t];if(k.solar&&!sunUp())continue;for(const f in k.fx){const v=k.fx[f];if(f==="sp")S.sp+=v;else if(["armor","walk","cap","prot"].includes(f))continue;else S.res[f]=f==="power"?clamp(S.res[f]+v,0,capP()):clamp(S.res[f]+v)}out.push(k.icon)}if(out.length)log("🏗️ Modules worked all day: "+out.join(" "));clampRes()}
-  S.sp+=5;log("🛰️ Mission Control grant: +5 SP");
-  const pool=EV.filter(e=>!S.seen.includes(e.id));const list=pool.length?pool:EV;
-  const e=list[Math.floor(rnd()*list.length)];S.seen=pool.length?S.seen.concat(e.id):[e.id];
-  S.ev={id:e.id,chosen:null,fx:""};S.phase="event";save();go("event")}
-/* ============ EVENT & NIGHT ============ */
-function renderEvent(){
-  const e=EV.find(x=>x.id===S.ev.id),ch=S.ev.chosen;
-  let b=`<div class="card"><h2>${e.icon} Night ${S.day}: ${e.title}</h2>${baseScene(true)}<p>${esc(e.text)}</p>${LOSTEV[e.id]?`<p class="small bad">🕯️ This hazard killed the crew of Outpost ${LOSTEV[e.id]} “${STORIES[LOSTEV[e.id]-1].name}”.</p>`:""}`;
-  if(ch===null)b+=`<p class="muted small">Choose one. No option is perfect.</p>`+e.opts.map((o,i)=>`<button class="opt" onclick="chooseOpt(${i})">${esc(o.l)}<span class="ctx">${esc(o.ctx)}</span></button>`).join("");
-  else b+=`<p><b>You chose:</b> ${esc(e.opts[ch].l)}</p><p class="${S.ev.fx?"":"muted"}">${S.ev.fx||"No change."}</p><div class="debrief"><b>${esc(e.real[0])}</b><br>${esc(e.real[1])}</div><button class="primary" onclick="toNight()">Continue into the night →</button>`;
-  return b+`</div>`+`<div class="card">${resBars()}</div>`}
-function chooseOpt(i){const e=EV.find(x=>x.id===S.ev.id),o=e.opts[i];S.ev.chosen=i;S.ev.fx=applyFx(o.fx,MD().sev,e.prot);S.evLog.push(e.id);log(e.icon+" "+e.title+": "+o.l);save();render()}
-function toNight(){resolveNight();S.phase=S.over?"end":"night";save();go("night")}
-function resolveNight(){
-  const m=MD(),dr=m.dr,r=S.res,L=[];
-  const d={o2:Math.round(NIGHT.o2*dr),water:Math.round(NIGHT.water*dr),food:Math.round(NIGHT.food*dr),power:Math.round(NIGHT.power*dr)};
-  r.o2-=d.o2;r.water-=d.water;r.food-=d.food;r.power-=d.power;r.morale-=NIGHT.morale;
-  L.push(`Night uses: 🫧 -${d.o2}  💧 -${d.water}  🍲 -${d.food}  ⚡ -${d.power} (heaters)  🙂 -${NIGHT.morale}`);
-  let cause=null;
-  if(S.cabinDust>0){const h=Math.round(S.cabinDust/15*m.sev);if(h>0){r.health-=h;L.push('🧤 Moon dust inside the cabin irritated your lungs: health -'+h)}S.cabinDust=0}
-  if(r.power<0){r.power=0;r.health-=30;L.push("❄️ Power ran out and the heaters switched off. The habitat froze: health -30.");cause="power"}
-  if(r.water<=0){r.water=0;r.health-=25;L.push("🏜️ Out of water: health -25.");cause="water"}
-  if(r.food<=0){r.food=0;r.health-=15;L.push("🍽️ Out of food: health -15.");cause="food"}
-  if(r.morale<=0){r.morale=0;r.health-=10;L.push("😞 Morale hit zero: health -10.");cause="morale"}
-  if(r.o2<=0){r.o2=0;L.push("🫧 The oxygen ran out.");S.over={win:false,cause:"o2",why:"oxygen"}}
-  if(r.health<=0&&!S.over){S.over={win:false,cause:"health",why:cause||"health"}}
-  if(m.free){S.over=null;for(const k in r)r[k]=Math.max(r[k],k==="health"?10:5)}
-  clampRes();
-  if(!S.over){if(S.day>=NIGHTS){if(S.loaded.length>=m.samp){S.over={win:true};ES=0;S.sp+=50+S.loaded.length*10;L.push("🌅 Dawn on Day "+(NIGHTS+1)+". You survived all "+NIGHTS+" nights! +"+(50+S.loaded.length*10)+" SP")}else{S.over={win:false,incomplete:true};L.push("🌅 Dawn on Day 8. You survived, but only "+S.loaded.length+" of "+m.samp+" samples were delivered.")}}
-    else{S.day++;if(S.day===LDAY)L.push("🌇 Sunset is near. Tomorrow the lunar night begins and there will be no sunlight for about 15 days.");if(S.day===LDAY+1)L.push("🌑 The lunar night has begun. No sunlight for about 15 days and about -173 °C outside. Solar panels make no power.");const lowM=r.morale<25?2:0;S.energy=Math.max(2,m.en-S.penalty-lowM);if(lowM)L.push("😞 Low morale: 2 fewer hours of energy tomorrow.");if(S.penalty)L.push("🔧 Repairs from the event: -"+S.penalty+" energy tomorrow.");S.penalty=0}}
-  S.report=L;log("🌙 Night "+(S.over&&!S.over.win?S.day:S.day-(S.over?0:1))+" complete.")}
-function renderNight(){
-  return `<div class="card"><h2>🌙 Night ${S.over?S.day:S.day-1} report</h2>${baseScene(true)}<div class="log" style="max-height:none">${S.report.map(l=>`<p>${esc(l)}</p>`).join("")}</div></div><div class="card">${resBars()}${S.over?`<button class="primary" onclick="go('end')">See the result →</button>`:`<button class="primary" onclick="startDay()">☀️ Start Day ${S.day} →</button>`}</div>`}
-/* ============ ENDING ============ */
-let ES=0;
-function capsuleSVG(){return `<path d="M-14,10 L-9,-22 Q0,-34 9,-22 L14,10Z" fill="#eceff8" stroke="#8a90a8"/><path d="M-14,10 L14,10 L10,16 L-10,16Z" fill="#6b4a2a"/><circle cx="0" cy="-8" r="4" fill="#60a5fa"/><path d="M-9,-22 L9,-22" stroke="#cbd0e6"/>`}
-function endSceneLift(){return `<svg viewBox="0 0 800 340" class="scene" role="img" aria-label="Return capsule lifting off from the Moon"><defs><linearGradient id="ls" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#02040f"/><stop offset="1" stop-color="#1a2760"/></linearGradient><radialGradient id="le" cx=".35" cy=".35"><stop offset="0" stop-color="#9fd0ff"/><stop offset="1" stop-color="#1e4fa8"/></radialGradient></defs><rect width="800" height="340" fill="url(#ls)"/>${starsSVG(80,800,340,13)}<circle cx="640" cy="80" r="34" fill="url(#le)"/><path d="M0,290 Q200,262 400,285 T800,280 V340 H0Z" fill="#6a6e8a"/><rect y="300" width="800" height="40" fill="#585c78"/><ellipse cx="400" cy="302" rx="70" ry="8" fill="rgba(0,0,0,.3)"/><g class="rise"><g transform="translate(400,282) scale(1.6)">${capsuleSVG()}<path class="flame" d="M-6,16 L0,44 L6,16Z" fill="#fb923c"/><path class="flame" d="M-3,16 L0,32 L3,16Z" fill="#fde047"/></g></g><circle class="puff" cx="400" cy="292" r="26" fill="#ddd" opacity=".5"/><circle class="puff" cx="360" cy="296" r="18" fill="#ddd" opacity=".4"/><circle class="puff" cx="440" cy="296" r="18" fill="#ddd" opacity=".4"/></svg>`}
-function endSceneSplash(){return `<svg viewBox="0 0 800 340" class="scene" role="img" aria-label="Capsule splashing down in the ocean"><defs><linearGradient id="ss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset="1" stop-color="#f9b27c"/></linearGradient></defs><rect width="800" height="340" fill="url(#ss)"/><circle cx="130" cy="210" r="30" fill="#ffe08a" opacity=".9"/><rect y="230" width="800" height="110" fill="#1d4f91"/><path d="M0,236 Q50,228 100,236 T200,236 T300,236 T400,236 T500,236 T600,236 T700,236 T800,236" stroke="#8cc4ff" stroke-width="2" fill="none"/><g transform="translate(640,236)"><path d="M-70,0 L70,0 L55,22 L-55,22Z" fill="#cfd3e6"/><rect x="-20" y="-24" width="40" height="24" fill="#e5e7eb"/><rect x="-6" y="-38" width="3" height="14" fill="#cbd0e6"/><rect x="-24" y="-8" width="10" height="6" fill="#60a5fa"/></g><g class="fall"><g transform="translate(330,150)"><path d="M-70,-90 Q-35,-140 0,-90 Q35,-140 70,-90" fill="none"/><path d="M-60,-62 Q-30,-120 0,-62Z" fill="#f97316"/><path d="M0,-62 Q30,-120 60,-62Z" fill="#fff"/><path d="M-20,-66 Q0,-96 20,-66Z" fill="#f97316"/><path d="M-55,-62 L-6,10 M55,-62 L6,10 M0,-62 L0,10" stroke="#ddd" stroke-width="1.2"/><g transform="translate(0,26) scale(1.2)">${capsuleSVG()}</g></g></g></svg>`}
-function rankOf(){const r=S.res,avg=(r.o2+r.water+r.food+r.power+r.health+r.morale)/6;return avg>=70?["🥇","Gold: Commander of Outpost 7"]:avg>=45?["🥈","Silver: Outpost 7 Operator"]:["🥉","Bronze: Outpost 7 Survivor"]}
-function renderEnd(){
-  const o=S.over,evs=[...new Set(S.evLog)].map(id=>EV.find(e=>e.id===id)),cards=evs.map(e=>`<div class="debrief"><b>${e.icon} ${esc(e.real[0])}</b><br>${esc(e.real[1])}</div>`).join("");
-  if(o.win){
-    const nav=(n,l)=>`<div class="row" style="margin-top:10px"><button class="primary" onclick="ES=${n};render()">${l}</button></div>`;
-    if(ES===0)return `<div class="card"><h2>🏅 Survived ${NIGHTS} days!</h2>${baseScene(false)}<p class="good"><b>Days survived: ${NIGHTS} of ${NIGHTS}</b></p><p>Dawn breaks on Day ${NIGHTS+1}. The radio crackles: <i>"Outpost 7, this is Mission Control. We have your signal. Six crews came before you, and none lasted the week. You are the first to survive."</i></p><p>Oxygen ${S.res.o2} · Water ${S.res.water} · Food ${S.res.food} · Power ${S.res.power} · Health ${S.res.health} · Morale ${S.res.morale}</p><p>Your ${S.loaded.length} rock samples are sealed in the return capsule.</p>${nav(1,"🚀 Launch the return capsule →")}</div>`;
-    if(ES===1)return `<div class="card"><h2>🚀 Liftoff</h2>${endSceneLift()}<p>The capsule fires its engine. With only one sixth of Earth's gravity and no air, it climbs fast and silent. Your samples are heading home.</p>${nav(2,"🌍 Return to Earth →")}</div>`;
-    if(ES===2)return `<div class="card"><h2>🌊 Splashdown</h2>${endSceneSplash()}<p>Days later the capsule hits Earth's air at about 11 km/s. The heat shield glows, parachutes open and the capsule splashes down. A recovery ship hoists it aboard.</p>${nav(3,"🔬 Lab results →")}</div>`;
-    const rk=rankOf();
-    return `<div class="card"><h2>🔬 Mission complete: the lab results</h2><p>Scientists open your sample tubes:</p><div class="grid">${S.loaded.map(id=>{const t=SAMPLES.find(x=>x.id===id);return `<div class="card" style="margin:0"><h3>${t.icon} ${esc(t.n)}</h3><p class="small">${esc(t.fact)}</p></div>`}).join("")}</div>
-    <div class="debrief"><b>${rk[0]} ${rk[1]}</b><br>Survived ${NIGHTS} of ${NIGHTS} days with ${S.loaded.length} sample${S.loaded.length===1?"":"s"} delivered. Final Science Points: <b>${S.sp}</b></div>
-    <div class="debrief"><b>🕯️ In memory of the Six Lost Crews</b><br>${STORIES.map(st=>"Outpost "+st.n+" “"+esc(st.name)+"”: "+st.crew.map(esc).join(", ")).join("<br>")}<br><br>Outpost 7 carried their research home. You read ${storiesFound()} of their 6 logs.</div><h3>The real missions behind your nights</h3>${cards||"<p class='muted'>No events recorded.</p>"}
-    <div class="row" style="margin-top:10px"><button class="primary" onclick="go('modes')">Play again</button><button onclick="ES=0;render()">Replay ending</button><button onclick="go('home')">Home</button></div></div>`}
-  if(o.incomplete)return `<div class="card"><h2>🌑 Survived, but the mission is incomplete</h2>${baseScene(false)}<p class="good"><b>Days survived: ${NIGHTS} of ${NIGHTS}</b></p><p>You lived through all ${NIGHTS} days, but Mission Control needed <b>${MD().samp} rock samples</b> loaded in the return capsule and you only delivered <b>${S.loaded.length}</b>. The science was the whole reason for Outpost 7.</p><p class="muted">Next time, collect samples at the field site early and load them at the landing pad.</p><h3>What the real missions teach</h3>${cards||"<p class='muted'>No events recorded.</p>"}<div class="row" style="margin-top:10px"><button class="primary" onclick="pickMode('${S.mode}')">Try again</button><button onclick="go('modes')">Change mode</button><button onclick="go('home')">Home</button></div></div>`;
-  const f=FAIL[o.cause]||FAIL.health;
-  return `<div class="card"><h2>💥 Outpost 7 was lost on night ${S.day}</h2>${baseScene(true)}<p><b>${esc(f[0])}.</b> ${esc(f[1])}</p><p class="muted">Cause chain: ${esc(o.why)}.</p><h3>What the real missions teach</h3>${cards||"<p class='muted'>No events recorded.</p>"}<div class="row" style="margin-top:10px"><button class="primary" onclick="pickMode('${S.mode}')">Try again</button><button onclick="go('modes')">Change mode</button><button onclick="go('home')">Home</button></div></div>`}
-/* ============ MODES SCREEN ============ */
-function modes(){
-  return '<div class="card"><h2>Choose your training mode</h2><p class="muted">Survive '+NIGHTS+' days at Outpost 7. '+(S.mode&&S.phase!=="home"?'Starting a new outpost erases your current one.':'Pick how tough Mission Control should be.')+'</p></div><div class="grid">'+
-   Object.keys(MODES).map(k=>{const m=MODES[k];return '<div class="card" style="margin:0"><h3>'+m.icon+' '+m.n+'</h3><p class="small muted">'+m.tag+'</p><p class="small">'+esc(m.desc)+'</p><button class="primary" onclick="pickMode(\''+k+'\')">Start '+m.n+'</button></div>'}).join("")+'</div><div class="row" style="margin-top:12px"><button onclick="go(\'home\')">🏠 Home</button></div>';
-}
-/* ============ QUIZ ============ */
-function startQuiz(){if(S.energy<1)return;S.energy--;S.res.morale=clamp(S.res.morale+3);save();Q={qs:[...QUIZ].sort(()=>rnd()-.5).slice(0,5),i:0,right:0,picked:null,pts:0};go("quiz")}
-function renderQuiz(){
-  if(Q.i>=Q.qs.length)return '<div class="card"><h2>Quiz complete!</h2><p>You got <b>'+Q.right+'/'+Q.qs.length+'</b> and earned <b>'+Q.pts+' SP</b>.</p><button class="primary" onclick="TAB=\'build\';go(\'base\')">Back to the outpost</button></div>';
-  const q=Q.qs[Q.i];
-  return '<div class="card"><div class="row spread"><h2>❓ Quiz '+(Q.i+1)+'/'+Q.qs.length+'</h2></div><p><b>'+esc(q.q)+'</b></p>'+
-   q.a.map((x,j)=>'<button class="opt '+(Q.picked!==null&&j===q.c?'sel':'')+'" '+(Q.picked!==null?'disabled':'')+' onclick="answerQ('+j+')">'+esc(x)+'</button>').join("")+
-   (Q.picked!==null?'<div class="debrief">'+(Q.picked===q.c?'<b class="good">Correct! +'+q.v+' SP</b>':'<b class="bad">Not quite.</b>')+' '+esc(q.e)+'</div><button class="primary" onclick="Q.i++;Q.picked=null;render()">Next →</button>':'')+'</div>';
-}
-function answerQ(j){const q=Q.qs[Q.i];Q.picked=j;if(j===q.c){Q.right++;Q.pts+=q.v;S.sp+=q.v;save()}render()}
-
-/* ============ LORE: SIX LOST OUTPOSTS ============ */
 const STORIES=[
  {n:1,name:"Pioneer",night:2,ev:"co2",crew:["Cmdr Ana Reyes","Eng. Tomas Okafor"],
   head:"The first crew to try. They stayed too calm about the air.",
@@ -1061,63 +513,291 @@ const STORIES=[
 ];
 const LOST=STORIES.map(s=>({n:s.n,night:s.night,cause:s.cause,ev:s.ev}));
 const LOSTEV={co2:1,dust:2,flare:3,meteor:4,cold:5,homesick:6,recycler:6};
-function stnWhere(id){const s=STN[id],pad=STN.pad,d=Math.hypot(s.x-pad.x,s.y-pad.y)*1.5;return "about "+(d>=1000?(d/1000).toFixed(1)+" km":Math.round(d/10)*10+" m")+" "+compass(s.x-pad.x,s.y-pad.y)+" of the pad"}
+
 function storyHTML(st){return `<p class="small muted">Crew: ${st.crew.map(esc).join(" · ")} · lost on night ${st.night}</p>${st.logs.map(l=>`<p class="small"><b>${esc(l[0])}</b> ${esc(l[1])}</p>`).join("")}<div class="debrief"><b>${esc(st.real[0])}</b><br>${esc(st.real[1])}</div>`}
-function showStory(n,salv){const st=STORIES[n-1],p=$("#pop");if(!p)return;POP=true;p.hidden=false;p.innerHTML=`<b>📜 Outpost ${n}: “${esc(st.name)}”</b>${storyHTML(st)}${salv?`<p class="small good">${esc(salv)}</p>`:""}<button class="primary" onclick="closePop()">Close</button>`;P.popA=[]}
+
 function storiesFound(){return STORIES.filter(st=>S.poi["poi_wreck"+st.n]).length}
+
+/* ============ EVENT TYPES ============ */
+const ETYPE={rad:["☢️","Radiation"],tech:["🔧","Technical failure"],med:["🩺","Medical"],env:["🌑","Environment"],supply:["📦","Supply"],psych:["🧠","Crew"]};
+const TYPEOF={flare:"rad",dust:"env",meteor:"env",co2:"tech",cold:"tech",quake:"env",comms:"tech",recycler:"tech",blight:"supply",airlock:"env",short:"tech",homesick:"psych",static:"env",helmet:"tech",alarm:"tech",resupply:"supply",thermal:"env",frozen:"tech",shower:"env",lro:"supply"};
+const NIGHTONLY=["cold","homesick","frozen","shower"];
+const EVAIDS=["helmet","static","badge","fall"];
+EV.push(
+ {id:"spe",type:"rad",icon:"☀️",title:"Solar particle event",text:"NASA space weather forecasters report a big flare. Fast protons from the Sun will reach the Moon within the hour. There is no air or magnetic field to stop them.",prot:true,
+  opts:[{l:"Shelter in the storm cellar until it passes",ctx:"Behind regolith and water walls you take a small dose. You lose time and some mood.",fx:{rad:6,morale:-6,e:2}},{l:"Finish your work first, then shelter",ctx:"Risky. A big storm can deliver a large dose in just a few hours.",fx:{rad:45,health:-8}},{l:"Ignore the alert",ctx:"The dose may be very high. This is how astronauts get radiation sickness.",fx:{rad:110,health:-20}}],
+  real:["NASA space weather","Solar particle events can raise the dose quickly. Apollo-era planners worried about the August 1972 storm. Artemis crews are trained to shelter, and thick regolith or water walls cut the dose."]},
+ {id:"gcr",type:"rad",icon:"🌌",title:"Cosmic ray surge",text:"The Sun is quiet, and a quiet Sun lets more galactic cosmic rays through. Your dosimeter climbs steadily.",prot:true,
+  opts:[{l:"Sleep behind the water tanks",ctx:"Water makes a decent shield but you lose some for drinking.",fx:{rad:4,water:-5,morale:-2}},{l:"Carry on as usual",ctx:"A small extra dose, no cost.",fx:{rad:14}}],
+  real:["Galactic cosmic rays","Cosmic ray levels are highest when solar activity is low. They are hard to shield against, so crews limit total exposure over time."]},
+ {id:"badge",type:"rad",icon:"📟",title:"Dosimeter alarm outside",text:"Your radiation badge chirps during an outside task. The dose rate has jumped.",prot:false,
+  opts:[{l:"Return inside now",ctx:"Costs tomorrow's time but protects you.",fx:{rad:3,e:1}},{l:"Finish the sample first",ctx:"You get the job done but pay in dose.",fx:{rad:18,health:-4}}],
+  real:["Astronaut dosimeters","Crews wear dosimeters and mission controllers track the dose for each person against NASA's limits."]},
+ {id:"fall",type:"med",icon:"🪨",title:"A fall on the slope",text:"The slope is loose and your boot slides. You tumble in the dust. Low gravity makes it feel slow, but the suit is still stiff.",prot:false,
+  opts:[{l:"Get up carefully and check the suit",ctx:"Takes a few minutes but safe.",fx:{e:1,health:-3}},{l:"Hurry on",ctx:"The suit might have a small tear.",fx:{health:-10,o2:-4}}],
+  real:["Apollo moonwalks","Apollo astronauts fell several times on the surface, including on Apollo 17, because the suits are bulky and the dust is slippery."]},
+ {id:"sick",type:"med",icon:"🤒",title:"Feverish and dizzy",text:"You wake up with a fever. Your head spins, and the medical checklist says to stop and call Earth.",prot:false,
+  opts:[{l:"Call the flight surgeon and rest",ctx:"Safe, but you lose time.",fx:{health:-4,e:2,morale:2}},{l:"Push through",ctx:"You keep working while sick.",fx:{health:-18}}],
+  real:["Flight surgeons","NASA flight surgeons support astronauts from the ground, and crews carry medical kits and train in first aid."]},
+ {id:"bone",type:"med",icon:"🦴",title:"Bone loss warning",text:"Your health check shows weak bones. In low gravity bones thin quickly unless you exercise.",prot:false,
+  opts:[{l:"Add extra exercise",ctx:"Two hours on the treadmill.",fx:{health:4,e:2,power:-3}},{l:"Skip it today",ctx:"You save time but weaken.",fx:{health:-8}}],
+  real:["Bone density in space","Astronauts in orbit can lose about 1% of bone density a month without countermeasures, so exercise is scheduled every day."]},
+ {id:"fire",type:"tech",icon:"🔥",title:"A small fire",text:"Smoke fills a corner of the habitat. A cartridge in an oxygen generator is burning.",prot:false,
+  opts:[{l:"Use the extinguisher and ventilate",ctx:"The fire is out but you lose air.",fx:{o2:-10,power:-4}},{l:"Seal the module and wait",ctx:"Smoke spreads. Air burns off.",fx:{o2:-20,health:-10}}],
+  real:["Mir space station, 1997","A fire in an oxygen candle on Mir filled the station with smoke. Fire safety training is a core part of astronaut preparation."]},
+ {id:"ammonia",type:"tech",icon:"⚠️",title:"Toxic leak alarm",text:"A coolant leak alarm rings. Ammonia can be toxic, and the cooling loop pressure is falling.",prot:false,
+  opts:[{l:"Put on masks and isolate the section",ctx:"Safe procedure, a stressful hour.",fx:{morale:-4,e:1}},{l:"Check the source first",ctx:"Faster, but you breathe whatever is in the air.",fx:{health:-12,o2:-4}}],
+  real:["ISS ammonia alarm, 2015","In January 2015 an ISS cooling alarm sent astronauts to the Russian segment while controllers checked for a leak."]},
+ {id:"jam",type:"tech",icon:"🚪",title:"Airlock jam",text:"The outer airlock door will not seal. You cannot go outside until it is fixed.",prot:false,
+  opts:[{l:"Work the manual release",ctx:"A slow, tiring job.",fx:{e:2,health:-2}},{l:"Cycle the airlock again",ctx:"It burns air and power.",fx:{power:-10,o2:-6}}],
+  real:["Airlock safety","Airlocks have manual overrides because a stuck door would trap crews inside or outside."]},
+ {id:"antenna",type:"tech",icon:"📡",title:"Antenna failure",text:"The main antenna loses its lock on Earth. Mission Control goes silent.",prot:false,
+  opts:[{l:"Realign it by hand outside",ctx:"A short walk and a small dose.",fx:{e:1,o2:-4,rad:2}},{l:"Use the backup low-gain antenna",ctx:"Slower link. Mood sinks.",fx:{morale:-6,power:-3}}],
+  real:["Deep Space Network","NASA's Deep Space Network of big dishes keeps contact with spacecraft. Backup antennas keep a thin link when the main one fails."]},
+ {id:"slip",type:"supply",icon:"🚀",title:"Cargo lander delayed",text:"A cargo lander is delayed by a day. Everything ordered will arrive late.",prot:false,
+  opts:[{l:"Reorganize supplies and wait",ctx:"Costs a little food and time.",fx:{delay:1,food:-6,e:1}},{l:"Complain to Mission Control",ctx:"It does not help. Mood drops.",fx:{delay:1,morale:-4}}],
+  real:["Launch delays","Cargo flights to the ISS and Moon slip for weather, technical checks and orbital timing. Crews carry reserves for this."]},
+ {id:"bus",type:"tech",icon:"🔌",title:"Power bus overload",text:"A breaker trips and lights flicker. Too many machines are drawing power at once.",prot:false,
+  opts:[{l:"Shed non-critical loads",ctx:"Fewer lights and gadgets. Mood dips.",fx:{power:-6,morale:-4}},{l:"Run everything",ctx:"Burns a lot of stored power.",fx:{power:-18}}],
+  real:["Power management","Space stations constantly manage power loads. Critical systems like life support always come first."]},
+ {id:"calm",type:"env",icon:"🌤️",title:"Quiet space weather",text:"NASA's space weather forecast shows a calm week ahead. You have a rare breather.",prot:false,
+  opts:[{l:"Use the calm to rest",ctx:"Good for body and mind.",fx:{health:6,morale:4}},{l:"Spend extra time outside",ctx:"Fun, with a small dose.",fx:{morale:6,rad:2,o2:-3}}],
+  real:["Space weather","Forecasters watch the Sun for flares and storms so crews can plan outside work during calm periods."]}
+);
+EV.forEach(e=>{if(!e.type)e.type=TYPEOF[e.id]||"env"});
+function pickEvent(when){
+  const ok=e=>!EVAIDS.includes(e.id)&&(when==="morning"?!NIGHTONLY.includes(e.id):true);
+  let pool=EV.filter(e=>ok(e)&&!S.seen.includes(e.id));if(!pool.length){S.seen=[];pool=EV.filter(ok)}
+  let list=pool;
+  if(S.day-S.lastRad>=5&&rnd()<.35){const r=pool.filter(e=>e.type==="rad");if(r.length)list=r}
+  else{list=[];pool.forEach(e=>{for(let i=0;i<(e.type==="rad"?2:1);i++)list.push(e)})}
+  const e=list[Math.floor(rnd()*list.length)];S.seen.push(e.id);if(e.type==="rad"){S.lastRad=S.day;S.alert=1}return e}
+function pickEva(){const l=EV.filter(e=>EVAIDS.includes(e.id));return l[Math.floor(rnd()*l.length)]}
+
+/* ============ SCENE ============ */
+function modSVG(k,x,gy,sc){const m=MODK[k],c1=m.c[0],c2=m.c[1],sh=m.sh;let b="";
+  if(sh==="dome")b=`<path d="M-22,0 A22,20 0 0 1 22,0Z" fill="${c1}" stroke="rgba(0,0,0,.4)"/>`;
+  else if(sh==="box")b=`<rect x="-24" y="-24" width="48" height="24" rx="3" fill="${c1}" stroke="rgba(0,0,0,.4)"/>`;
+  else if(sh==="tank")b=`<rect x="-24" y="-22" width="20" height="22" rx="7" fill="${c1}"/><rect x="4" y="-22" width="20" height="22" rx="7" fill="${c2}"/>`;
+  else if(sh==="panel")b=`<path d="M-26,-6 L-18,-30 L26,-30 L22,-6Z" fill="${c1}"/><path d="M0,0 V-8" stroke="#9aa3bf" stroke-width="3"/>`;
+  else if(sh==="mound")b=`<path d="M-30,0 Q0,-34 30,0Z" fill="${c1}"/>`;
+  else if(sh==="reactor")b=`<rect x="-8" y="-34" width="16" height="34" fill="${c1}"/><path d="M-20,-8 H20 M-16,-18 H16" stroke="#9aa3bf" stroke-width="3"/><circle cx="0" cy="-36" r="5" fill="#fbbf24"/>`;
+  else if(sh==="mast")b=`<path d="M0,0 V-40" stroke="#cbd0e6" stroke-width="3"/><circle cx="0" cy="-42" r="5" fill="${c1}"/>`;
+  else if(sh==="dish")b=`<path d="M0,0 V-18" stroke="#9aa3bf" stroke-width="4"/><ellipse cx="0" cy="-28" rx="22" ry="12" fill="${c1}" transform="rotate(-20 0 -28)"/>`;
+  return `<g transform="translate(${x},${gy}) scale(${sc})">${b}<text y="-6" text-anchor="middle" font-size="14">${m.icon}</text></g>`}
+function baseScene(night){
+  const W=800,H=330,gy=262,dark=night||(S.mode&&isDark(S.day));
+  let o=`<svg viewBox="0 0 ${W} ${H}" class="scene" role="img" aria-label="Outpost 7 on the Moon">`+skyGround(W,H,gy,false,"b");
+  if(!dark)o+=`<circle cx="90" cy="78" r="16" fill="#ffd166"/><circle cx="90" cy="78" r="30" fill="#ffd166" opacity=".18"/>`;
+  [0,1,2].forEach(i=>{const x=290+i*34;o+=`<path d="M${x},${gy} V${gy-16}" stroke="#9aa3bf" stroke-width="2"/><path d="M${x-14},${gy-16} L${x-9},${gy-34} L${x+14},${gy-34} L${x+14},${gy-16}Z" fill="#2563eb"/><path d="M${x-14},${gy-16} L${x-9},${gy-34} L${x+14},${gy-34} L${x+14},${gy-16}Z" fill="#a9834f" opacity="${Math.min(.9,S.dust/110).toFixed(2)}"/>`});
+  o+=`<g transform="translate(130,${gy}) scale(1.7)">${habSVG()}</g><g transform="translate(765,${gy}) scale(.9)">${landerSVG()}</g>`;
+  const shown=(S.modules||[]).slice(0,21);
+  shown.forEach((m,i)=>{const row=Math.floor(i/7),col=i%7,sc=1-row*.18;o+=modSVG(m.t,410+col*46+row*20,gy-row*24,sc)});
+  if(dark)o+=`<rect width="${W}" height="${H}" fill="#000" opacity=".45"/><g transform="translate(130,${gy}) scale(1.7)"><circle cx="0" cy="-18" r="5" fill="#ffd166"/></g>`;
+  if(S.alert)o+=`<defs><linearGradient id="ra" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f43f5e" stop-opacity=".55"/><stop offset="1" stop-color="#f43f5e" stop-opacity="0"/></linearGradient></defs><rect width="${W}" height="220" fill="url(#ra)"><animate attributeName="opacity" values=".35;1;.35" dur="1.6s" repeatCount="indefinite"/></rect><text x="400" y="42" text-anchor="middle" font-size="18" font-weight="700" fill="#fecdd3">☢️ RADIATION ALERT</text>`;
+  const done=S.over&&S.over.win?NIGHTS:Math.max(0,S.day-1);
+  o+=`<rect x="14" y="12" width="182" height="9" rx="4" fill="none" stroke="#e5e7eb" opacity=".6"/><rect x="14" y="12" width="${Math.round(182*done/NIGHTS)}" height="9" rx="4" fill="#e5e7eb"/><text x="14" y="38" font-size="11" style="fill:var(--muted)">Days survived: ${done} of ${NIGHTS}</text>`;
+  return o+`</svg>`}
+/* ============ HUD ============ */
+function hudHTML(){
+  const cap=capP();
+  const bar=r=>{const v=S.res[r[0]],m=r[0]==="power"?cap:100,pc=Math.max(0,Math.min(100,v/m*100));return `<div class="hb" title="${r[2]}"><span>${r[1]} ${Math.round(v)}</span><div class="bar ${pc<25?"danger":pc<50?"warn":""}"><i style="width:${pc}%"></i></div></div>`};
+  const rp=Math.min(100,S.rad/RADMAX*100);
+  return `<div class="hrow"><span class="hchip strong">🌑 Day ${S.day}/${NIGHTS}</span><span class="hchip">${isDark(S.day)?"🌑 Dark day":"☀️ Sunlit day"}</span><span class="hchip">🕒 ${clock()}</span><span class="hchip">🌡️ ${surfaceTemp()} °C outside</span><span class="hchip">⚡ ${S.energy}h left</span><span class="hchip">⭐ ${S.sp} SP</span><span class="hchip">🛡️ ${armorEff().toFixed(1)}/3</span></div><div class="hbars">${RES.map(bar).join("")}<div class="hb" title="Radiation dose this month"><span>☢️ ${Math.round(S.rad)}/${RADMAX} mSv</span><div class="bar ${rp>=70?"danger":rp>=40?"warn":""}"><i style="width:${rp}%"></i></div></div></div>`}
+function tip(){
+  if(!MD().hints)return"";let t;
+  const low=RES.slice(0,5).sort((a,b)=>S.res[a[0]]-S.res[b[0]])[0];
+  const m={o2:"Service the oxygen scrubbers.",water:"Recycle water.",food:"Cook a meal.",power:"Tune the battery bank or brush the panels.",health:"Exercise or do a medical check."};
+  if(S.res[low[0]]<45)t=low[2]+" is low. "+m[low[0]];
+  else if(S.rad>120)t="Radiation dose is high. Build a radiation shelter and avoid long trips outside.";
+  else if(S.day>=4&&S.loaded.length<MD().samp)t="Mission needs "+MD().samp+" rock samples. Use the Explore tab to fetch them, then load them in the Mission tab.";
+  else if(S.dust>50)t="Panels are dusty. Brush them before you lose power.";
+  else if(S.energy>=3)t="Spare hours? Science tasks earn Science Points, and Build lets you order modules.";
+  else t="When you are out of hours, end the day.";
+  return `<p class="small good" style="margin:6px 0 0">💡 Tip: ${esc(t)}</p>`}
+/* ============ MODAL ============ */
+function openModal(html,btn){const m=$("#modal");m.innerHTML='<div class="modalbox">'+html+(btn===false?"":'<div class="row" style="margin-top:10px"><button class="primary" onclick="closeModal()">OK</button></div>')+'</div>';m.hidden=false}
+function closeModal(){const m=$("#modal");m.hidden=true;m.innerHTML=""}
+/* ============ DAY SCREEN ============ */
+const OUTCH={dust:1,shelter:1,isru:1};
+const OUTRE=/crater|dune|riverbed|meteorite|cliff|lava|shadowed|space walk|boulder|rock layers|ice|sunset|sky|solar telescope|seismometer|instrument|sieve|volcanic|find water/i;
+const isOutSci=a=>OUTRE.test(a[0]);
+function renderDay(){
+  const T=S.tab||"maintain",tabs=[["maintain","🛠️","Maintain"],["science","🔬","Science"],["explore","🧭","Explore"],["build","🏗️","Build"],["mission","🎯","Mission"],["archive","📜","Archive"],["base","📊","Base"]];
+  return `<div class="hudcard">${hudHTML()}${tip()}</div>
+  <div class="card">${baseScene(false)}<p class="small"><b>📡 NASA fact of the day:</b> ${esc(FACTS[(S.day-1)%FACTS.length])}</p></div>
+  <div class="card"><div class="row tabsrow">${tabs.map(t=>`<button class="${T===t[0]?"primary":""}" onclick="S.tab='${t[0]}';render()">${t[1]} ${t[2]}</button>`).join("")}</div>${tabBody(T)}</div>
+  <div class="card row spread"><div><b>⚡ ${S.energy} hours left today</b><br><span class="small muted">When you end the day, tonight's event happens. Hours do not carry over.</span></div><button class="primary" onclick="endDay()">🌙 End the day</button></div>`}
+function tabBody(T){
+  const free=MD().free;
+  if(T==="maintain")return `<p class="small muted">Everyday survival jobs. Each uses hours. Work outside costs a little suit oxygen and radiation dose.</p>`+CH.map(c=>{const maxed=c.max&&S.armor>=c.max;const fx=Object.entries(c.fx).filter(([k])=>k!=="armor"&&k!=="dust").map(([k,v])=>RIC[k]+(v>0?"+":"")+v).join(" ");return `<button class="opt" ${S.energy<c.e||maxed?"disabled":""} onclick="doChore('${c.id}')">${c.icon} ${esc(c.n)} <span class="small muted">⚡${c.e}h ${fx}${c.id==="dust"?" 🧹":""}${c.id==="shelter"?" 🛡️+1":""}</span><span class="ctx">${OUTCH[c.id]?"🌑 Outside · ":"🏠 Inside · "}${esc(c.ctx)}</span></button>`}).join("");
+  if(T==="science")return `<p class="small muted">Science tasks use hours and power and earn Science Points. More unlock on days 3 and 5.</p>`+ACT.map((a,i)=>{const dn=S.done[i],lock=unlockDay(a)>S.day,pc=Math.ceil(a[2]/4),dis=dn||lock||S.energy<a[1];return `<button class="opt" style="opacity:${dn?.55:1}" ${dis?"disabled":""} onclick="doSci(${i})"><b>${esc(a[0])}</b> <span class="tag">${isOutSci(a)?"🌑 outside":"🔬 inside"}</span><span class="tag">⚡${a[1]}h</span><span class="tag">power -${pc}</span><span class="tag good">+${actPts(a)} SP</span>${lock?`<span class="tag">unlocks day ${unlockDay(a)}</span>`:""}${dn?`<span class="ctx">${esc(a[5])}</span>`:""}</button>`}).join("");
+  if(T==="explore")return exploreBody();
+  if(T==="build")return buildBody();
+  if(T==="mission")return missionBody();
+  if(T==="archive")return `<p class="small muted">Mission Control files on the six lost crews. Travel to a wreck with the Explore tab to read their last logs. Read: <b>${storiesFound()}/6</b>.</p>`+STORIES.map(st=>{const f=S.poi["poi_wreck"+st.n];return `<div class="card" style="margin:6px 0"><b>🕯️ Outpost ${st.n} “${esc(st.name)}”</b><br><span class="small muted">${st.crew.map(esc).join(" · ")} · lost on night ${st.night}</span><p class="small">${f?"":esc(st.head)+"<br><span class=muted>Logs unread. Search the wreck of Outpost "+st.n+" from the Explore tab.</span>"}</p>${f?`<div class="small">${st.logs.map(l=>`<p><b>${esc(l[0])}</b> ${esc(l[1])}</p>`).join("")}<div class="debrief"><b>${esc(st.real[0])}</b><br>${esc(st.real[1])}</div></div>`:""}</div>`}).join("");
+  const dr=MD().dr,dark=isDark(S.day),gen=dark?0:Math.round(DAY.gen*(1-S.dust/100)),use=Math.round(DAY.use*dr),rb=(RADBASE*MD().radm*shieldF()*siteOf().radf).toFixed(2),st=siteOf();
+  return `<div class="small"><p><b>${st.icon} ${esc(st.n)} · ${dark?"🌑 Dark":"☀️ Sunlit"} · Day ${S.day} of ${NIGHTS}</b></p><p>Dark days at this site: ${st.dark[0]} to ${st.dark[1]}.</p><p>⚡ Solar today: +${gen}${dark?" (no sunlight)":""}, base use −${use}. Panels ${Math.round(S.dust)}% dusty. Power storage ${Math.round(S.res.power)}/${capP()}.</p><p>🌙 A full day and night uses about 🫧 −${Math.round((DAY.o2+NIGHT.o2)*dr)} 💧 −${Math.round((DAY.water+NIGHT.water)*dr)} 🍲 −${Math.round((DAY.food+NIGHT.food)*dr)}, and the heaters use ⚡ −${Math.round(NIGHT.power*dr)}.</p><p>☢️ Baseline radiation here: ${rb} mSv per day inside your habitat (shield ${armorEff().toFixed(1)}/3). Total this month: ${S.rad.toFixed(1)} of ${RADMAX} mSv.</p><p>🏗️ Modules: ${S.modules.length?S.modules.map(m=>MODK[m.t].icon+" "+MODK[m.t].n+(m.buried?" (buried)":"")).join(", "):"none yet"}</p><p>⭐ ${S.sp} SP · Mission Control sends +5 SP every day.</p></div><div class="debrief"><b>📡 NASA data behind this game</b>${NASA.map(n=>`<p class="small"><b>${esc(n[0])}.</b> ${esc(n[1])}</p>`).join("")}</div>`+(free?`<button class="sm" onclick="S.res={o2:100,water:100,food:100,power:100,health:100,morale:100};S.dust=0;S.rad=0;save();render()">🧪 Refill all</button>`:"")+(S.log.length?`<div class="log" style="margin-top:8px">${S.log.map(l=>`<p>${esc(l)}</p>`).join("")}</div>`:"")}
+function doChore(id){const c=CH.find(x=>x.id===id);if(S.energy<c.e){toast("Not enough hours left today.");return}S.energy-=c.e;let t=applyFx(c.fx,0);if(OUTCH[id]){S.res.o2=clamp(S.res.o2-3);t+="  🫧 -3 (suit)  "+applyFx({rad:.3},0)}log(c.icon+" "+c.n+(t?" → "+t:""));toast(c.fact);save();render()}
+function doSci(i){const a=ACT[i],pc=Math.ceil(a[2]/4);if(S.done[i]||S.energy<a[1])return;S.energy-=a[1];S.res.power=clamp(S.res.power-pc);S.res.morale=clamp(S.res.morale+2);if(isOutSci(a)){S.res.o2=clamp(S.res.o2-3);applyFx({rad:.3},0)}S.done[i]=1;const pts=actPts(a);S.sp+=pts;log("🔬 "+a[0]+" → +"+pts+" SP");toast("+"+pts+" SP: "+a[5]);save();render()}
+/* ============ EXPLORE ============ */
+const PAD={x:760,y:450};
+function destList(){const d=[{id:"field",label:"Field site beside the base",kind:"site",type:"regolith",x:850,y:220,task:2}];POIS.forEach(p=>d.push({id:"poi_"+p.id,label:p.label,kind:p.kind,type:p.type,n:p.n,x:p.x,y:p.y,task:p.kind==="lava"?3:p.kind==="wreck"?1:2}));return d}
+function tripCost(d){const wf=mods("ltv")?.5:1;let dist=Math.hypot(d.x-PAD.x,d.y-PAD.y);if(d.kind==="ice")dist*=siteOf().ice;const hrs=Math.max(0,Math.ceil(2*dist/320*wf)),o2=Math.ceil(2*dist/130*MD().dr*wf),rad=Math.round((hrs+d.task)*.08*10)/10;return {dist,hrs,o2,rad,total:hrs+d.task,km:dist*1.5/1000}}
+function destDone(d){return d.kind==="wreck"?!!S.poi[d.id]:d.kind==="site"?S.samples.includes(d.type):d.kind==="ice"?!!S.poi.ice:!!S.poi.lava}
+function destText(d){if(d.kind==="wreck")return "Wreck of Outpost "+d.n+" (read the crew's last logs, find salvage)";if(d.kind==="site"){const t=SAMPLES.find(x=>x.id===d.type);return "Collect "+t.n+" sample"}if(d.kind==="ice")return "Drill for water ice (also counts as a sample)";return "Explore the lava tube (shelter knowledge)"}
+function exploreBody(){
+  return `<p class="small muted">Trips outside cost hours (round trip plus the task), suit oxygen and a small radiation dose, and there is a chance of an EVA incident.${mods("ltv")?" Your rover garage halves travel costs.":" A Lunar Terrain Vehicle garage would halve travel costs."}</p>`+destList().map(d=>{const c=tripCost(d),dn=destDone(d),label=d.kind==="site"&&d.id!=="field"?SAMPLES.find(x=>x.id===d.type).icon+" "+d.label:d.kind==="wreck"?"🕯️ "+d.label:d.kind==="ice"?"🧊 "+d.label:d.kind==="lava"?"🕳️ "+d.label:"🟫 "+d.label;
+    return `<button class="opt" ${dn||S.energy<c.total?"disabled":""} onclick="goTrip('${d.id}')">${esc(label)} ${dn?"✅ done":""}<span class="ctx">${esc(destText(d))} · ${c.km.toFixed(1)} km away · ⚡${c.total}h · 🫧 -${c.o2} · ☢️ +${c.rad} mSv</span></button>`}).join("")}
+function goTrip(id){
+  const d=destList().find(x=>x.id===id),c=tripCost(d);if(S.energy<c.total){toast("Not enough hours left for that trip.");return}
+  S.energy-=c.total;S.res.o2=clamp(S.res.o2-c.o2);applyFx({rad:c.rad},0);log("🧭 Trip to "+d.label+": "+c.total+"h, 🫧 -"+c.o2+", ☢️ +"+c.rad+" mSv");
+  if(rnd()<.3*MD().sev){const e=pickEva();S.ev={id:e.id,chosen:null,fx:"",kind:"eva",after:id};S.phase="event";save();go("event");return}
+  arriveAt(id)}
+function arriveAt(id){
+  const d=destList().find(x=>x.id===id);let html="";
+  if(d.kind==="wreck"){const w=WLOG[d.n-1],t=applyFx(w[1],0);S.poi[id]=1;S.sp+=6;let bonus="";if(storiesFound()>=6&&!S.poi.allstories){S.poi.allstories=1;S.sp+=30;S.res.morale=clamp(S.res.morale+15);bonus="You have now read all six logs. Their message is clear: check the air, clean the panels, shelter from radiation, patch the walls, keep warm and look after each other. +30 SP and a morale boost."}log("🔦 Searched Outpost "+d.n+" → "+t+" (+6 SP)");const st=STORIES[d.n-1];html=`<b>📜 Outpost ${d.n}: “${esc(st.name)}”</b>${storyHTML(st)}<p class="small good">${esc(w[2])} (${esc(t)}, +6 SP) ${esc(bonus)}</p>`}
+  else if(d.kind==="site"){const t=SAMPLES.find(x=>x.id===d.type);S.samples.push(d.type);S.sp+=8;log("⛏️ Collected "+t.n+" → +8 SP");html=`<b>${t.icon} ${esc(t.n)} collected! +8 SP</b><p class="small">${esc(t.fact)}</p>`}
+  else if(d.kind==="ice"){S.poi.ice=1;if(!S.samples.includes("ice"))S.samples.push("ice");const t=applyFx({water:30},0);S.sp+=10;log("🧊 Drilled water ice → "+t+" (+10 SP)");html=`<b>🧊 Water ice found! ${esc(t)} +10 SP</b><p class="small">${esc(SAMPLES.find(x=>x.id==="ice").fact)}</p>`}
+  else{S.poi.lava=1;S.armor=Math.min(3,S.armor+1);S.res.morale=clamp(S.res.morale+6);S.sp+=12;log("🕳️ Explored the lava tube → +1 armor, +12 SP");html=`<b>🕳️ Lava tube explored! +1 shelter armor, +12 SP</b><p class="small">Lava tubes could shelter bases from radiation, micrometeoroids and temperature swings.</p>`}
+  save();render();openModal(html)}
+/* ============ BUILD ============ */
+function haveCount(k){return mods(k)+S.kits.filter(x=>x===k).length+S.orders.filter(o=>o.t==="m:"+k).length}
+function buildBody(){
+  const free=MD().free;let h=`<p class="small muted">Order modules and supplies with Science Points. A cargo lander delivers them in <b>2 days</b>. Then spend hours to build each module and choose where to put it. You have <b>${S.sp} SP</b>.</p>`;
+  if(S.kits.length){h+=`<p><b>📦 Ready to build</b></p>`+S.kits.map((k,i)=>`<button class="opt" onclick="placeChoice(${i})">${MODK[k].icon} Build: ${esc(MODK[k].n)} <span class="ctx">${esc(MODK[k].d)}. Choose where to put it.</span></button>`).join("")}
+  if(S.orders.length)h+=`<p><b>🚀 On the way</b></p>`+S.orders.map(o=>`<p class="small">${o.t[0]==="m"?MODK[o.t.slice(2)].icon+" "+esc(MODK[o.t.slice(2)].n):"📦 "+esc(SUP[+o.t.slice(2)].n)} · arrives on day ${o.arrive}</p>`).join("");
+  h+=`<p><b>📦 Supplies</b></p>`+SUP.map((s,i)=>`<button class="opt" ${S.sp<s.cost&&!free?"disabled":""} onclick="orderItem('s:${i}')">${esc(s.n)} <span class="tag">${free?"free":s.cost+" SP"}</span><span class="ctx">${esc(s.ctx)}</span></button>`).join("");
+  h+=`<p><b>🏗️ Modules</b></p>`+Object.keys(MODK).map(k=>{const m=MODK[k],hv=haveCount(k),mx=m.max||MODMAX;return `<button class="opt" ${(S.sp<m.cost&&!free)||hv>=mx?"disabled":""} onclick="orderItem('m:${k}')">${m.icon} ${esc(m.n)} <span class="tag">${free?"free":m.cost+" SP"}</span><span class="tag">${hv}/${mx}</span><span class="ctx">${esc(m.d)}</span></button>`}).join("");
+  return h}
+function orderItem(t){const free=MD().free,mod=t[0]==="m",cost=mod?MODK[t.slice(2)].cost:SUP[+t.slice(2)].cost;if(!free&&S.sp<cost)return;if(mod){const k=t.slice(2);if(haveCount(k)>=(MODK[k].max||MODMAX)){toast("You already have the maximum of that module.");return}}if(!free)S.sp-=cost;S.orders.push({t,arrive:S.day+2});log("🚀 Ordered "+(mod?MODK[t.slice(2)].n:SUP[+t.slice(2)].n)+". Arrives day "+(S.day+2)+".");toast("Ordered. A cargo lander will arrive on day "+(S.day+2)+".");save();render()}
+function placeChoice(i){const k=S.kits[i];openModal(`<b>${MODK[k].icon} Where do you build the ${esc(MODK[k].n)}?</b><button class="opt" onclick="buildKit(${i},false)">🏜️ On the surface (2 hours)<span class="ctx">Quick and easy.</span></button><button class="opt" onclick="buildKit(${i},true)">⛏️ Bury it under regolith (3 hours)<span class="ctx">Moon dirt is a good radiation and meteoroid shield. Adds +0.5 shield for your whole base.</span></button><button class="sm" onclick="closeModal()">Cancel</button>`,false)}
+function buildKit(i,buried){const k=S.kits[i],h=buried?3:2;closeModal();if(S.energy<h){toast("Not enough hours left today. Building needs "+h+".");return}S.energy-=h;S.res.o2=clamp(S.res.o2-3);applyFx({rad:.3},0);S.kits.splice(i,1);S.modules.push({t:k,buried:!!buried});if(buried)S.buried++;const f=MODK[k].fx;if(f.armor)S.armor=Math.min(3,S.armor+f.armor);log("🏗️ Built "+MODK[k].n+(buried?" (buried)":""));toast(MODK[k].icon+" "+MODK[k].n+" built! "+MODK[k].d);save();render()}
+/* ============ MISSION ============ */
+function missionBody(){
+  const req=MD().samp,col=S.samples.length,ld=S.loaded.length,ns=S.over&&S.over.win?NIGHTS:S.day-1;const g=(k,t)=>`<p class="small ${k?"good":""}">${k?"✅":"⬜"} ${t}</p>`;
+  return `<p><b>Mission goals</b></p>${g(ns>=NIGHTS,"Survive "+NIGHTS+" days ("+ns+"/"+NIGHTS+")")}${g(col>=req,"Collect "+req+" rock samples ("+col+"/"+req+")")}${g(ld>=req,"Load them into the return capsule ("+ld+"/"+req+")")}${g(S.rad<RADMAX,"Stay under "+RADMAX+" mSv of radiation ("+Math.round(S.rad)+")")}<p class="small muted">Samples come from 8 places. Use the Explore tab to go and get them.</p>`+
+  SAMPLES.map(t=>{const got=S.samples.includes(t.id);return `<div class="card" style="margin:6px 0"><b>${t.icon} ${esc(t.n)}</b> ${got?(S.loaded.includes(t.id)?"📦 loaded":"🎒 collected"):"⬜ not yet"}<p class="small muted">${esc(t.fact)}</p></div>`}).join("")+
+  `<button class="opt" ${S.energy<1||ld>=col?"disabled":""} onclick="loadSamples()">📦 Load samples into the return capsule <span class="tag">⚡1h</span><span class="ctx">The capsule takes them home to NASA's labs.</span></button><button class="opt" ${S.energy<1?"disabled":""} onclick="startQuiz()">❓ Mission Control quiz <span class="tag">⚡1h</span><span class="ctx">Answer questions to earn Science Points.</span></button>`}
+function loadSamples(){const n=S.samples.filter(x=>!S.loaded.includes(x)).length;if(!n){toast("No new samples to load.");return}if(S.energy<1){toast("Not enough hours left today.");return}S.energy-=1;S.loaded=S.samples.slice();log("📦 Loaded "+n+" sample(s) into the return capsule.");toast("Samples are safe in the return capsule: "+S.loaded.length+"/"+MD().samp);save();render()}
+
+/* ============ DAY FLOW ============ */
+function checkFail(){if(MD().free)return false;let c=null;if(S.res.o2<=0)c=["o2","oxygen"];else if(S.res.health<=0)c=["health","health"];else if(S.rad>=RADMAX)c=["rad","radiation"];if(c){S.over={win:false,cause:c[0],why:c[1]};S.phase="end";save();go("end");return true}return false}
+function startDay(){
+  S.phase="day";S.alert=0;closeModalSafe();
+  const arrived=S.orders.filter(o=>o.arrive<=S.day);S.orders=S.orders.filter(o=>o.arrive>S.day);
+  arrived.forEach(o=>{if(o.t[0]==="m"){S.kits.push(o.t.slice(2));log("📦 Cargo lander delivered: "+MODK[o.t.slice(2)].n)}else{const s=SUP[+o.t.slice(2)],t=applyFx(s.fx,0);log("📦 Cargo lander delivered: "+s.n+" → "+t)}});
+  if(arrived.length)toast("📦 A cargo lander arrived with "+arrived.length+" delivery"+(arrived.length>1?"s":"")+"! Check the Build tab.");
+  S.tab=S.tab||"maintain";
+  if(rnd()<MD().prob){const e=pickEvent("morning");S.ev={id:e.id,chosen:null,fx:"",kind:"morning"};S.phase="event";save();go("event");return}
+  save();go("day")}
+function closeModalSafe(){const m=$("#modal");if(m){m.hidden=true;m.innerHTML=""}}
+function endDay(){
+  const dr=MD().dr,r=S.res,dark=isDark(S.day),gen=dark?0:Math.round(DAY.gen*(1-S.dust/100)),use=Math.round(DAY.use*dr);
+  r.o2-=Math.round(DAY.o2*dr);r.water-=Math.round(DAY.water*dr);r.food-=Math.round(DAY.food*dr);r.power+=gen-use;r.health-=Math.round(DAY.health*dr);r.morale-=DAY.morale;
+  r.morale+=siteOf().morale;
+  const rb=Math.round(RADBASE*MD().radm*shieldF()*siteOf().radf*10)/10;S.rad=Math.round((S.rad+rb)*10)/10;
+  log((dark?"🌑 Day ":"☀️ Day ")+S.day+" ends: "+(dark?"no sunlight":"solar +"+gen+" power ("+Math.round(S.dust)+"% dust)")+", base used "+use+". Radiation +"+rb+" mSv.");
+  S.dust=clamp(S.dust+DAY.dust);clampRes();
+  if(S.modules.length){const out=[];for(const m of S.modules){const k=MODK[m.t];if(k.solar&&dark)continue;for(const f in k.fx){const v=k.fx[f];if(f==="sp")S.sp+=v;else if(["armor","walk","cap","prot"].includes(f))continue;else S.res[f]=f==="power"?clamp(S.res[f]+v,0,capP()):clamp(S.res[f]+v)}out.push(k.icon)}if(out.length)log("🏗️ Modules worked all day: "+out.join(" "));clampRes()}
+  S.sp+=5;log("🛰️ Mission Control grant: +5 SP");
+  const e=pickEvent("night");S.ev={id:e.id,chosen:null,fx:"",kind:"night"};S.phase="event";save();go("event")}
+/* ============ EVENTS ============ */
+function renderEvent(){
+  const e=EV.find(x=>x.id===S.ev.id),ch=S.ev.chosen,k=S.ev.kind,t=ETYPE[e.type]||ETYPE.env;
+  const lead=k==="night"?"Night "+S.day:k==="eva"?"EVA incident":"Morning, Day "+S.day;
+  let b=`<div class="hudcard">${hudHTML()}</div><div class="card"><div class="row"><span class="tag" style="font-size:.85rem">${t[0]} ${t[1]}</span><span class="tag bad" style="font-size:.85rem">${k==="eva"?"incident outside":"major problem"}</span></div><h2>${e.icon} ${lead}: ${esc(e.title)}</h2>${baseScene(k==="night")}<p>${esc(e.text)}</p>${LOSTEV[e.id]?`<p class="small bad">🕯️ This hazard killed the crew of Outpost ${LOSTEV[e.id]} “${esc(STORIES[LOSTEV[e.id]-1].name)}”.</p>`:""}`;
+  if(ch===null)b+=`<p class="muted small">Choose one. Every option costs something.</p>`+e.opts.map((o,i)=>`<button class="opt" onclick="chooseOpt(${i})">${esc(o.l)}<span class="ctx">${esc(o.ctx)}</span></button>`).join("");
+  else b+=`<p><b>You chose:</b> ${esc(e.opts[ch].l)}</p><p class="${S.ev.fx?"":"muted"}">${S.ev.fx||"No change."}</p><div class="debrief"><b>${esc(e.real[0])}</b><br>${esc(e.real[1])}</div><button class="primary" onclick="afterEvent()">${k==="night"?"Continue into the night →":"Continue →"}</button>`;
+  return b+`</div>`}
+function chooseOpt(i){const e=EV.find(x=>x.id===S.ev.id),o=e.opts[i];S.ev.chosen=i;S.ev.fx=applyFx(o.fx,MD().sev,e.prot);S.evLog.push(e.id);log(e.icon+" "+e.title+": "+o.l);save();render()}
+function afterEvent(){
+  const k=S.ev.kind,after=S.ev.after;
+  if(k==="night"){toNight();return}
+  S.ev=null;S.phase="day";save();
+  if(checkFail())return;
+  if(k==="eva"){go("day");arriveAt(after);return}
+  go("day")}
+function toNight(){resolveNight();S.phase=S.over?"end":"night";save();go("night")}
+function resolveNight(){
+  const m=MD(),dr=m.dr,r=S.res,L=[];
+  const d={o2:Math.round(NIGHT.o2*dr),water:Math.round(NIGHT.water*dr),food:Math.round(NIGHT.food*dr),power:Math.round(NIGHT.power*dr)};
+  r.o2-=d.o2;r.water-=d.water;r.food-=d.food;r.power-=d.power;r.morale-=NIGHT.morale;
+  L.push(`Night uses: 🫧 -${d.o2}  💧 -${d.water}  🍲 -${d.food}  ⚡ -${d.power} (heaters)  🙂 -${NIGHT.morale}`);
+  let cause=null;
+  if(r.power<0){r.power=0;r.health-=30;L.push("❄️ Power ran out and the heaters switched off. The habitat froze: health -30.");cause="power"}
+  if(r.water<=0){r.water=0;r.health-=25;L.push("🏜️ Out of water: health -25.");cause="water"}
+  if(r.food<=0){r.food=0;r.health-=15;L.push("🍽️ Out of food: health -15.");cause="food"}
+  if(r.morale<=0){r.morale=0;r.health-=10;L.push("😞 Morale hit zero: health -10.");cause="morale"}
+  if(S.rad>=120){const h=Math.round((S.rad>=180?4:2)*m.sev);r.health-=h;L.push("☢️ Radiation sickness at "+Math.round(S.rad)+" mSv: nausea and fatigue, health -"+h+".");cause=cause||"radiation"}
+  if(r.o2<=0){r.o2=0;L.push("🫧 The oxygen ran out.");S.over={win:false,cause:"o2",why:"oxygen"}}
+  if(S.rad>=RADMAX&&!S.over)S.over={win:false,cause:"rad",why:"radiation"};
+  if(r.health<=0&&!S.over)S.over={win:false,cause:"health",why:cause||"health"};
+  if(m.free){S.over=null;for(const k in r)r[k]=Math.max(r[k],k==="health"?10:5)}
+  clampRes();
+  if(!S.over){
+    if(S.day>=NIGHTS){if(S.loaded.length>=m.samp){S.over={win:true};ES=0;S.sp+=50+S.loaded.length*10;L.push("🌅 Dawn on Day "+(NIGHTS+1)+". You survived all "+NIGHTS+" days! +"+(50+S.loaded.length*10)+" SP")}else{S.over={win:false,incomplete:true};L.push("🌅 Dawn on Day "+(NIGHTS+1)+". You survived, but only "+S.loaded.length+" of "+m.samp+" samples were delivered.")}}
+    else{S.day++;const st=siteOf();
+      if(S.day===st.dark[0]-1)L.push("🌇 Sunset is near. Tomorrow the long dark begins, with no sunlight for "+(st.dark[1]-st.dark[0]+1)+" days.");
+      if(S.day===st.dark[0])L.push("🌑 The dark days begin. No sunlight for "+(st.dark[1]-st.dark[0]+1)+" days and about -173 °C outside. Solar panels make no power.");
+      if(S.day===st.dark[1]+1)L.push("🌅 Sunrise! The Sun is back and solar panels work again.");
+      const lowM=r.morale<25?2:0;S.energy=Math.max(2,m.en-S.penalty-lowM);if(lowM)L.push("😞 Low morale: 2 fewer hours of energy tomorrow.");if(S.penalty)L.push("🔧 Repairs from the event: -"+S.penalty+" hours tomorrow.");S.penalty=0}}
+  S.report=L;log("🌙 Night "+(S.over?S.day:S.day-1)+" complete.")}
+function renderNight(){
+  return `<div class="hudcard">${hudHTML()}</div><div class="card"><h2>🌙 Night ${S.over?S.day:S.day-1} report</h2>${baseScene(true)}<div class="log" style="max-height:none">${S.report.map(l=>`<p>${esc(l)}</p>`).join("")}</div>${S.over?`<button class="primary" onclick="go('end')">See the result →</button>`:`<button class="primary" onclick="startDay()">☀️ Start Day ${S.day} →</button>`}</div>`}
+
+let ES=0;
+function capsuleSVG(){return `<path d="M-14,10 L-9,-22 Q0,-34 9,-22 L14,10Z" fill="#eceff8" stroke="#8a90a8"/><path d="M-14,10 L14,10 L10,16 L-10,16Z" fill="#6b4a2a"/><circle cx="0" cy="-8" r="4" fill="#60a5fa"/><path d="M-9,-22 L9,-22" stroke="#cbd0e6"/>`}
+function endSceneLift(){return `<svg viewBox="0 0 800 340" class="scene" role="img" aria-label="Return capsule lifting off from the Moon"><defs><linearGradient id="ls" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#02040f"/><stop offset="1" stop-color="#1a2760"/></linearGradient><radialGradient id="le" cx=".35" cy=".35"><stop offset="0" stop-color="#9fd0ff"/><stop offset="1" stop-color="#1e4fa8"/></radialGradient></defs><rect width="800" height="340" fill="url(#ls)"/>${starsSVG(80,800,340,13)}<circle cx="640" cy="80" r="34" fill="url(#le)"/><path d="M0,290 Q200,262 400,285 T800,280 V340 H0Z" fill="#6a6e8a"/><rect y="300" width="800" height="40" fill="#585c78"/><ellipse cx="400" cy="302" rx="70" ry="8" fill="rgba(0,0,0,.3)"/><g class="rise"><g transform="translate(400,282) scale(1.6)">${capsuleSVG()}<path class="flame" d="M-6,16 L0,44 L6,16Z" fill="#fb923c"/><path class="flame" d="M-3,16 L0,32 L3,16Z" fill="#fde047"/></g></g><circle class="puff" cx="400" cy="292" r="26" fill="#ddd" opacity=".5"/><circle class="puff" cx="360" cy="296" r="18" fill="#ddd" opacity=".4"/><circle class="puff" cx="440" cy="296" r="18" fill="#ddd" opacity=".4"/></svg>`}
+function endSceneSplash(){return `<svg viewBox="0 0 800 340" class="scene" role="img" aria-label="Capsule splashing down in the ocean"><defs><linearGradient id="ss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset="1" stop-color="#f9b27c"/></linearGradient></defs><rect width="800" height="340" fill="url(#ss)"/><circle cx="130" cy="210" r="30" fill="#ffe08a" opacity=".9"/><rect y="230" width="800" height="110" fill="#1d4f91"/><path d="M0,236 Q50,228 100,236 T200,236 T300,236 T400,236 T500,236 T600,236 T700,236 T800,236" stroke="#8cc4ff" stroke-width="2" fill="none"/><g transform="translate(640,236)"><path d="M-70,0 L70,0 L55,22 L-55,22Z" fill="#cfd3e6"/><rect x="-20" y="-24" width="40" height="24" fill="#e5e7eb"/><rect x="-6" y="-38" width="3" height="14" fill="#cbd0e6"/><rect x="-24" y="-8" width="10" height="6" fill="#60a5fa"/></g><g class="fall"><g transform="translate(330,150)"><path d="M-70,-90 Q-35,-140 0,-90 Q35,-140 70,-90" fill="none"/><path d="M-60,-62 Q-30,-120 0,-62Z" fill="#f97316"/><path d="M0,-62 Q30,-120 60,-62Z" fill="#fff"/><path d="M-20,-66 Q0,-96 20,-66Z" fill="#f97316"/><path d="M-55,-62 L-6,10 M55,-62 L6,10 M0,-62 L0,10" stroke="#ddd" stroke-width="1.2"/><g transform="translate(0,26) scale(1.2)">${capsuleSVG()}</g></g></g></svg>`}
+function rankOf(){const r=S.res,avg=(r.o2+r.water+r.food+r.power+r.health+r.morale)/6;return avg>=70?["🥇","Gold: Commander of Outpost 7"]:avg>=45?["🥈","Silver: Outpost 7 Operator"]:["🥉","Bronze: Outpost 7 Survivor"]}
+function renderEnd(){
+  const o=S.over,evs=[...new Set(S.evLog)].map(id=>EV.find(e=>e.id===id)),cards=evs.map(e=>`<div class="debrief"><b>${e.icon} ${esc(e.real[0])}</b><br>${esc(e.real[1])}</div>`).join("");
+  if(o.win){
+    const nav=(n,l)=>`<div class="row" style="margin-top:10px"><button class="primary" onclick="ES=${n};render()">${l}</button></div>`;
+    if(ES===0)return `<div class="card"><h2>🏅 Survived ${NIGHTS} days!</h2>${baseScene(false)}<p class="good"><b>Days survived: ${NIGHTS} of ${NIGHTS}</b></p><p>Dawn breaks on Day ${NIGHTS+1}. The radio crackles: <i>"Outpost 7, this is Mission Control. We have your signal. Six crews came before you, and none lasted the week. You are the first to survive."</i></p><p>Oxygen ${S.res.o2} · Water ${S.res.water} · Food ${S.res.food} · Power ${S.res.power} · Health ${S.res.health} · Morale ${S.res.morale}</p><p>Your ${S.loaded.length} rock samples are sealed in the return capsule.</p>${nav(1,"🚀 Launch the return capsule →")}</div>`;
+    if(ES===1)return `<div class="card"><h2>🚀 Liftoff</h2>${endSceneLift()}<p>The capsule fires its engine. With only one sixth of Earth's gravity and no air, it climbs fast and silent. Your samples are heading home.</p>${nav(2,"🌍 Return to Earth →")}</div>`;
+    if(ES===2)return `<div class="card"><h2>🌊 Splashdown</h2>${endSceneSplash()}<p>Days later the capsule hits Earth's air at about 11 km/s. The heat shield glows, parachutes open and the capsule splashes down. A recovery ship hoists it aboard.</p>${nav(3,"🔬 Lab results →")}</div>`;
+    const rk=rankOf();
+    return `<div class="card"><h2>🔬 Mission complete: the lab results</h2><p>Scientists open your sample tubes:</p><div class="grid">${S.loaded.map(id=>{const t=SAMPLES.find(x=>x.id===id);return `<div class="card" style="margin:0"><h3>${t.icon} ${esc(t.n)}</h3><p class="small">${esc(t.fact)}</p></div>`}).join("")}</div>
+    <div class="debrief"><b>${rk[0]} ${rk[1]}</b><br>Survived ${NIGHTS} of ${NIGHTS} days with ${S.loaded.length} sample${S.loaded.length===1?"":"s"} delivered. Final Science Points: <b>${S.sp}</b></div>
+    <div class="debrief"><b>🕯️ In memory of the Six Lost Crews</b><br>${STORIES.map(st=>"Outpost "+st.n+" “"+esc(st.name)+"”: "+st.crew.map(esc).join(", ")).join("<br>")}<br><br>Outpost 7 carried their research home. You read ${storiesFound()} of their 6 logs.</div><h3>The real missions behind your nights</h3>${cards||"<p class='muted'>No events recorded.</p>"}
+    <div class="row" style="margin-top:10px"><button class="primary" onclick="go('modes')">Play again</button><button onclick="ES=0;render()">Replay ending</button><button onclick="go('home')">Home</button></div></div>`}
+  if(o.incomplete)return `<div class="card"><h2>🌑 Survived, but the mission is incomplete</h2>${baseScene(false)}<p class="good"><b>Days survived: ${NIGHTS} of ${NIGHTS}</b></p><p>You lived through all ${NIGHTS} days, but Mission Control needed <b>${MD().samp} rock samples</b> loaded in the return capsule and you only delivered <b>${S.loaded.length}</b>. The science was the whole reason for Outpost 7.</p><p class="muted">Next time, collect samples at the field site early and load them at the landing pad.</p><h3>What the real missions teach</h3>${cards||"<p class='muted'>No events recorded.</p>"}<div class="row" style="margin-top:10px"><button class="primary" onclick="pickMode('${S.mode}')">Try again</button><button onclick="go('modes')">Change mode</button><button onclick="go('home')">Home</button></div></div>`;
+  const f=FAIL[o.cause]||FAIL.health;
+  return `<div class="card"><h2>💥 Outpost 7 was lost on night ${S.day}</h2>${baseScene(true)}<p><b>${esc(f[0])}.</b> ${esc(f[1])}</p><p class="muted">Cause chain: ${esc(o.why)}.</p><h3>What the real missions teach</h3>${cards||"<p class='muted'>No events recorded.</p>"}<div class="row" style="margin-top:10px"><button class="primary" onclick="pickMode('${S.mode}')">Try again</button><button onclick="go('modes')">Change mode</button><button onclick="go('home')">Home</button></div></div>`}
+
+/* ============ ARRIVAL ============ */
+function pickMode(k){S=fresh();S.mode=k;S.phase="arrival";S.energy=MODES[k].en;save();go("lore")}
 function renderLore(){
   return `<div class="card"><h2>📜 Outpost 7: mission briefing</h2><p class="muted">In this story, six lunar outposts were built before yours. Every crew was lost within the first week. Mission Control calls this the Six Lost Crews. Their wrecks are scattered across the Moon, and their last logs are still waiting to be found.</p>
   <div class="grid">${STORIES.map(st=>`<div class="card" style="margin:0"><h3>🕯️ Outpost ${st.n} “${esc(st.name)}”</h3><p class="small muted">${st.crew.map(esc).join(" · ")}</p><p class="small muted">Lost on night ${st.night}</p><p class="small">${esc(st.head)}</p></div>`).join("")}</div>
-  <p>Outpost 7 is yours. <b>Survive ${NIGHTS} days (a full lunar cycle: about 15 days of sunlight, then 15 of darkness) and bring home ${MD().samp} rock samples.</b> Keep oxygen, water, food, power, health and morale above zero, and learn from the six crews who came before you.</p>
-  <button class="primary" onclick="go('landing')">🛬 Begin the landing →</button></div>`}
-/* ============ LANDING ============ */
-function renderLanding(){
-  return `<div class="card"><h2>🛬 Land Outpost 7</h2><p class="muted small">Put the seventh outpost down gently on the flat green pad: vertical speed under ${MD().vy} m/s and sideways under 2 m/s. Controls: ↑/Space = main engine, ←/→ = side thrusters (or use the buttons). A soft landing keeps every supply safe. A hard landing damages supplies, but you still survive.</p>
-  <canvas id="cv" width="700" height="420"></canvas>
-  <div class="row" style="margin-top:8px"><button id="bL">◀</button><button id="bU">▲ Thrust</button><button id="bR">▶</button><button class="primary" id="bGo" onclick="newLanding()">Start landing</button><button class="sm" onclick="skipLanding()">Skip landing</button></div><div id="res"></div></div>`}
-function skipLanding(){S.arrival="skip";S.phase="day";save();go("base")}
-function initLanding(){
-  const bind=(id,k)=>{const b=$("#"+id);b.addEventListener("pointerdown",e=>{KEY[k]=true;e.preventDefault()});["pointerup","pointerleave","pointercancel"].forEach(ev=>b.addEventListener(ev,()=>KEY[k]=false))};
-  bind("bL","l");bind("bU","u");bind("bR","r");
-  const pw=Math.round(100*MD().pad);
-  LND={pw,stop:false,state:"ready",c:$("#cv"),pad:150+rnd()*400};
-  const pts=[];for(let x=0;x<=700;x+=25){let y=355;if(Math.abs(x-LND.pad)>pw/2+8)y=345+Math.sin(x*.07+LND.pad)*14+rnd()*10;pts.push([x,y])}
-  LND.terr=pts;
-  LND.ground=x=>{if(Math.abs(x-LND.pad)<=pw/2)return 355;const i=Math.max(0,Math.min(pts.length-2,Math.floor(x/25)));const t=(x-pts[i][0])/25;return pts[i][1]*(1-t)+pts[i+1][1]*t};
-  LND.L={x:100,y:40,vx:0,vy:0,fuel:100};
-  drawLanding(LND);
-}
-function newLanding(){
-  if(!LND||LND.state!=="ready")return;
-  $("#res").innerHTML="";LND.state="flying";LND.L={x:80+rnd()*540,y:30,vx:(rnd()-.5)*40,vy:0,fuel:100};
-  let last=performance.now();const me=LND;
-  (function loop(now){
-    if(me.stop)return;const dt=Math.min(.05,(now-last)/1000);last=now;
-    const L=me.L;let ax=0,ay=16;
-    if(L.fuel>0){if(KEY.u){ay-=30;L.fuel-=10*dt}if(KEY.l){ax-=22;L.fuel-=4*dt}if(KEY.r){ax+=22;L.fuel-=4*dt}}
-    L.vx+=ax*dt;L.vy+=ay*dt;L.x+=L.vx*dt;L.y+=L.vy*dt;
-    me.dust=KEY.u&&L.y>260?(me.dust||0)+1:0;
-    drawLanding(me);
-    const gy=me.ground(L.x);
-    if(L.x<0||L.x>700){me.state="done";endLanding(false,"The lander drifted away from the landing zone.");return}
-    if(L.y+12>=gy){me.state="done";
-      const onPad=Math.abs(L.x-me.pad)<=me.pw/2-6,vy=L.vy/10,vx=Math.abs(L.vx)/10;
-      if(!onPad)endLanding(false,"You touched down off the flat pad. Rocks and slopes can tip a lander over.");
-      else if(vy>MD().vy)endLanding(false,"Too fast! Touchdown at "+vy.toFixed(1)+" m/s damaged the lander.");
-      else if(vx>2)endLanding(false,"Too much sideways drift ("+vx.toFixed(1)+" m/s) tipped the lander.");
-      else endLanding(true,"Soft touchdown at "+vy.toFixed(1)+" m/s with "+Math.round(L.fuel)+"% fuel left.");
-      return}
-    requestAnimationFrame(loop);
-  })(last);
-}
-function endLanding(ok,msg){
-  S.arrival=ok?"soft":"hard";
-  if(!ok){S.res.o2-=15;S.res.power-=20;S.res.health-=10;clampRes()}
-  S.phase="day";save();
-  $("#res").innerHTML=`<div class="debrief"><b class="${ok?"good":"bad"}">${ok?"Soft landing! All supplies are safe.":"Hard landing. Oxygen -15, power -20, health -10."}</b><br>${esc(msg)}</div><button class="primary" onclick="go('base')">Begin Night 1 →</button>`;
-  const b=$("#bGo");if(b)b.style.display="none";
-}
+  <p>Outpost 7 is yours. <b>Survive ${NIGHTS} days (a full lunar cycle) and bring home ${MD().samp} rock samples.</b> Every day you will make choices. Major problems will strike often, and radiation from the Sun and deep space adds up. Stay under ${RADMAX} mSv, keep your six survival meters above zero, and learn from the six crews who came before you.</p>
+  <button class="primary" onclick="go('arrival')">🛬 Choose your landing →</button></div>`}
+function renderArrival(){
+  const a=S.arr||{step:0};
+  if(a.step===0)return `<div class="card"><h2>🛬 Step 1: choose a landing site</h2><p class="muted">Pick where Outpost 7 lands. Each site is a different trade-off between sunlight, ice, radiation and radio contact. All three are regions NASA studied for Artemis III.</p></div><div class="grid">${SITES.map(s=>`<div class="card" style="margin:0"><h3>${s.icon} ${esc(s.n)}</h3><p class="small">${esc(s.d)}</p><p class="small good">✅ ${esc(s.pros)}</p><p class="small bad">⚠️ ${esc(s.cons)}</p><p class="small muted">Dark days: ${s.dark[0]} to ${s.dark[1]}</p><button class="primary" onclick="chooseSite('${s.id}')">Land at ${esc(s.n)}</button></div>`).join("")}</div>`;
+  if(a.step===1){const p=Math.round(clamp(.9-.25*MD().sev,.3,.95)*100);return `<div class="card"><h2>🛬 Step 2: choose how to land at ${esc(siteOf().n)}</h2><button class="opt" onclick="chooseLanding(true)">🤖 Autopilot descent<span class="ctx">Safe and steady, but it burns extra fuel. You start with 8 less power.</span></button><button class="opt" onclick="chooseLanding(false)">🕹️ Fly it by hand<span class="ctx">About ${p}% chance of a perfect touchdown that saves fuel and lifts morale. Otherwise a hard landing damages supplies.</span></button></div>`}
+  return `<div class="card"><h2>🛬 Touchdown</h2><p>${esc(a.text)}</p><p>${esc(a.fx||"")}</p><div class="debrief"><b>Apollo 11 (1969)</b><br>Neil Armstrong flew the lander by hand past a boulder field and landed with very little fuel left. Landing sites and fuel margins matter.</div><button class="primary" onclick="startDay()">Begin Day 1 →</button></div>`}
+function chooseSite(id){S.site=id;S.arr={step:1};save();render()}
+function chooseLanding(auto){
+  let text,fx;
+  if(auto){text="The autopilot lands Outpost 7 gently, with a careful, fuel-hungry approach.";fx=applyFx({power:-8},0)}
+  else if(rnd()<clamp(.9-.25*MD().sev,.3,.95)){text="You fly it by hand and touch down softly with fuel to spare. The crew cheers.";fx=applyFx({power:5,morale:6},0)}
+  else{text="You land hard. A strut buckles and some supplies are damaged, but the base survives.";fx=applyFx({o2:-15,power:-20,health:-10},0)}
+  S.arr={step:2,text,fx};log("🛬 "+text);save();render()}
+/* ============ QUIZ ============ */
+function startQuiz(){if(S.energy<1){toast("Not enough hours left today.");return}S.energy--;S.res.morale=clamp(S.res.morale+3);save();Q={qs:[...QUIZ].sort(()=>rnd()-.5).slice(0,5),i:0,right:0,picked:null,pts:0};go("quiz")}
+function renderQuiz(){
+  if(Q.i>=Q.qs.length)return '<div class="card"><h2>Quiz complete!</h2><p>You got <b>'+Q.right+'/'+Q.qs.length+'</b> and earned <b>'+Q.pts+' SP</b>.</p><button class="primary" onclick="S.tab=\'mission\';go(\'day\')">Back to the outpost</button></div>';
+  const q=Q.qs[Q.i];
+  return '<div class="card"><h2>❓ Quiz '+(Q.i+1)+'/'+Q.qs.length+'</h2><p><b>'+esc(q.q)+'</b></p>'+q.a.map((x,j)=>'<button class="opt '+(Q.picked!==null&&j===q.c?'sel':'')+'" '+(Q.picked!==null?'disabled':'')+' onclick="answerQ('+j+')">'+esc(x)+'</button>').join("")+(Q.picked!==null?'<div class="debrief">'+(Q.picked===q.c?'<b class="good">Correct! +'+q.v+' SP</b>':'<b class="bad">Not quite.</b>')+' '+esc(q.e)+'</div><button class="primary" onclick="Q.i++;Q.picked=null;render()">Next →</button>':'')+'</div>'}
+function answerQ(j){const q=Q.qs[Q.i];Q.picked=j;if(j===q.c){Q.right++;Q.pts+=q.v;S.sp+=q.v;save()}render()}
+/* ============ MODES SCREEN ============ */
+function modes(){
+  return '<div class="card"><h2>Choose your training mode</h2><p class="muted">Survive '+NIGHTS+' days at Outpost 7. '+(S.mode&&S.phase!=="home"?'Starting a new outpost erases your current one.':'Pick how tough Mission Control should be.')+'</p></div><div class="grid">'+Object.keys(MODES).map(k=>{const m=MODES[k];return '<div class="card" style="margin:0"><h3>'+m.icon+' '+m.n+'</h3><p class="small muted">'+m.tag+'</p><p class="small">'+esc(m.desc)+'</p><button class="primary" onclick="pickMode(\''+k+'\')">Start '+m.n+'</button></div>'}).join("")+'</div><div class="row" style="margin-top:12px"><button onclick="go(\'home\')">🏠 Home</button></div>'}
 /* ============ HOME ============ */
+function resume(){const p=S.phase;go(p==="arrival"?(S.arr&&S.arr.step>=0&&S.site?"arrival":"lore"):p==="event"?"event":p==="night"?"night":p==="end"?"end":"day")}
 function renderHome(){
   const has=!!S.mode&&S.phase!=="home",info=has?`${MD().icon} ${MD().n} · Day ${Math.min(S.day,NIGHTS)} of ${NIGHTS} · ${S.sp} SP`:"No saved outpost yet";
   return `<div class="home-wrap"><svg class="home-stars" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${starsSVG(160,1000,1500,11)}${starsSVG(80,1000,1500,29)}</svg>
@@ -1127,12 +807,11 @@ function renderHome(){
    <div class="home-btns"><button class="hbtn primary" onclick="go('modes')">🚀 New Outpost</button><button class="hbtn" ${has?"":"disabled"} onclick="resume()">Continue Outpost</button></div>
    <p class="home-info">${esc(info)}</p></div>`}
 /* ============ RENDER ============ */
-function chips(){$("#chips").innerHTML=S.mode?`<span class="chip">${MD().icon} ${MD().n}</span><span class="chip">🌙 Day ${Math.min(S.day,NIGHTS)}/${NIGHTS}</span><span class="chip">⭐ ${S.sp} SP</span>`:""}
+function chips(){$("#chips").innerHTML=S.mode&&S.phase!=="home"?`<span class="chip">${MD().icon} ${MD().n}</span><span class="chip">🌙 Day ${Math.min(S.day,NIGHTS)}/${NIGHTS}</span><span class="chip">⭐ ${S.sp} SP</span>`:""}
 function render(){
-  chips();stopLanding();stopLoop();document.body.classList.toggle("home",V==="home");document.body.classList.toggle("wide",V==="base");
-  const f={home:renderHome,modes,lore:renderLore,landing:renderLanding,base:renderBase,event:renderEvent,night:renderNight,end:renderEnd,quiz:renderQuiz}[V];
-  $("#app").innerHTML=f();if(V==="landing")initLanding();if(V==="base")initWorld();
-}
+  chips();document.body.classList.toggle("home",V==="home");
+  const f={home:renderHome,modes,lore:renderLore,arrival:renderArrival,day:renderDay,event:renderEvent,night:renderNight,end:renderEnd,quiz:renderQuiz}[V];
+  $("#app").innerHTML=f()}
 V="home";render();
 
 </script>
