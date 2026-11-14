@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Space Sparks – Junior Astronaut Mission Trainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#070b1f;--panel:#111a3d;--panel2:#1a2656;--text:#eaf0ff;--muted:#9aa8d8;--accent:#ffb347;--good:#4ade80;--bad:#f87171;--blue:#60a5fa;--line:#2b3a78}
 *{box-sizing:border-box}
@@ -46,6 +49,21 @@ select{font:inherit;background:var(--panel2);color:var(--text);border:1px solid 
 .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--accent);color:#1b1200;font-weight:700;padding:8px 18px;border-radius:999px;z-index:9;box-shadow:0 4px 20px #0008}
 .tag{display:inline-block;font-size:.72rem;border:1px solid var(--line);border-radius:6px;padding:0 6px;margin-right:4px;color:var(--muted)}
 table{width:100%;border-collapse:collapse}td,th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left;font-size:.9rem}
+.home-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;font-family:Audiowide,"Times New Roman",serif;padding-block:8px}
+.home-stars{position:fixed;inset:0;width:100%;height:100%;z-index:-1}
+.home-stars circle{animation:tw 4s ease-in-out infinite}.home-stars circle:nth-child(3n){animation-delay:-1.3s}.home-stars circle:nth-child(5n){animation-delay:-2.6s}
+@keyframes tw{0%,100%{opacity:.25}50%{opacity:1}}
+.home-title{margin:0;font-size:clamp(1.8rem,6vw,3.2rem);letter-spacing:.12em;font-family:inherit;color:#fff}
+.home-sub{margin:0;color:#9aa8d8;letter-spacing:.2em;font-size:.85rem;text-transform:uppercase}
+.solar{width:min(100%,62vh,640px);height:auto;display:block}
+.home-order{margin:0;color:#7e8ab8;font-size:.72rem;letter-spacing:.08em}
+.home-btns{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+.hbtn{font-family:Audiowide,"Times New Roman",serif;font-weight:400;font-size:1.05rem;letter-spacing:.08em;padding:12px 26px;border-radius:999px;background:#000;border:2px solid #60a5fa;color:#eaf0ff;box-shadow:0 0 18px #60a5fa55}
+.hbtn.primary{background:var(--accent);border-color:var(--accent);color:#1b1200;box-shadow:0 0 22px #ffb34777}
+.hbtn:hover:not(:disabled){transform:translateY(-2px)}
+.home-info{margin:0;color:#9aa8d8;font-size:.85rem}
+body.home{background:#000}body.home header{display:none}
+@media(prefers-reduced-motion:reduce){.home-stars circle{animation:none}}
 .scene{width:100%;height:auto;border-radius:12px;border:1px solid var(--line);display:block;margin:8px 0}
 .streak{animation:drift 1.3s linear infinite}
 @keyframes drift{from{transform:translateX(-80px)}to{transform:translateX(880px)}}
@@ -55,7 +73,7 @@ table{width:100%;border-collapse:collapse}td,th{padding:4px 6px;border-bottom:1p
 </head>
 <body>
 <header>
-  <h1>🚀 Space Sparks <span class="muted small">Junior Astronaut Mission Trainer</span></h1>
+  <h1 style="cursor:pointer" onclick="go('home')" title="Home">🚀 Space Sparks <span class="muted small">Junior Astronaut Mission Trainer</span></h1>
   <div class="chips" id="chips"></div>
 </header>
 <main id="app"></main>
@@ -331,6 +349,37 @@ function outpostScene(){
     o+=`</g>`});
   return o+`</svg><p class="small muted">Gold outline = full Kapton and Mylar insulation. Brown mound = regolith cover. Colour shows the structure material.</p>`}
 
+/* ============ HOME ============ */
+function planetBody(k,r){
+  const sh=`<circle r="${r}" fill="url(#hshade)"/>`;
+  if(k==="earth")return `<circle r="${r}" fill="#2a6fdb"/><path d="M-6,-4 q4,-6 9,-1 q-1,6 -7,6z M2,3 q4,-2 5,2 q-3,3 -5,-2z" fill="#3fae5a"/><circle cx="${r+7}" cy="-5" r="2.2" fill="#d6d6d6"/>${sh}`;
+  if(k==="jup")return `<circle r="${r}" fill="url(#hjup)"/><ellipse cx="6" cy="6" rx="4" ry="2.5" fill="#c4553a"/>${sh}`;
+  if(k==="sat")return `<ellipse rx="${r*2}" ry="${r*.55}" fill="none" stroke="#b9a273" stroke-width="5" transform="rotate(-18)"/><circle r="${r}" fill="url(#hsat)"/><ellipse rx="${r*2}" ry="${r*.55}" fill="none" stroke="#e3d2a1" stroke-width="3" transform="rotate(-18)" stroke-dasharray="${r*3.2} ${r*9}" stroke-dashoffset="${-r*3.4}"/>${sh}`;
+  return `<circle r="${r}" fill="${k}"/>${sh}`}
+function home(){
+  const P=[["Mercury",90,5,"#9b9b9b",9],["Venus",130,9,"#e8c27a",15],["Earth",175,10,"earth",22],["Mars",220,7,"#c1440e",32],["Jupiter",290,22,"jup",60],["Saturn",365,17,"sat",90],["Uranus",420,12,"#7fe0e6",130],["Neptune",468,12,"#3b5bdb",170]];
+  const rm=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let o=`<svg viewBox="0 0 1000 1000" class="solar" role="img" aria-label="The solar system with the planets in order from the Sun"><defs>
+   <radialGradient id="hsun"><stop offset="0" stop-color="#fff6c2"/><stop offset=".55" stop-color="#ffc83d"/><stop offset="1" stop-color="#ff8a1f"/></radialGradient>
+   <radialGradient id="hglow"><stop offset="0" stop-color="#ffb347" stop-opacity=".55"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>
+   <radialGradient id="hshade" cx=".32" cy=".3" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".65"/></radialGradient>
+   <linearGradient id="hjup" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b38a62"/><stop offset=".2" stop-color="#ead5b2"/><stop offset=".38" stop-color="#b07f55"/><stop offset=".55" stop-color="#e8d2b0"/><stop offset=".72" stop-color="#a8774f"/><stop offset=".88" stop-color="#dcc7a5"/><stop offset="1" stop-color="#b38a62"/></linearGradient>
+   <linearGradient id="hsat" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cdb27a"/><stop offset=".4" stop-color="#ecdcae"/><stop offset=".7" stop-color="#c9ad76"/><stop offset="1" stop-color="#e2cf9c"/></linearGradient></defs>`;
+  o+=`<circle cx="500" cy="500" r="90" fill="url(#hglow)"/><circle cx="500" cy="500" r="36" fill="url(#hsun)"><title>Sun</title></circle>`;
+  P.forEach(([n,R,r,k,dur],i)=>{
+    const a=(i*47)%360;
+    o+=`<circle cx="500" cy="500" r="${R}" fill="none" stroke="#fff" stroke-opacity=".14"/>`;
+    o+=`<g transform="rotate(${a} 500 500)">${rm?"":`<animateTransform attributeName="transform" type="rotate" from="${a} 500 500" to="${a+360} 500 500" dur="${dur}s" repeatCount="indefinite"/>`}<g transform="translate(${500+R},500) scale(1.9)"><title>${n}</title>${planetBody(k,r)}</g></g>`});
+  return o+`</svg>`}
+function renderHome(){
+  const has=!!S.mode,info=has?`${MD().icon} ${MD().n} · Stage ${Math.min(S.stage,3)}${S.stage>3?" complete":""} · ${S.sp} SP`:"No saved outpost yet";
+  return `<div class="home-wrap"><svg class="home-stars" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${starsSVG(160,1000,1500,11)}${starsSVG(80,1000,1500,29)}</svg>
+   <h1 class="home-title">SPACE SPARKS</h1><p class="home-sub">Junior Astronaut Mission Trainer</p>
+   ${home()}
+   <p class="home-order">Mercury · Venus · Earth · Mars · Jupiter · Saturn · Uranus · Neptune</p>
+   <div class="home-btns"><button class="hbtn primary" onclick="go('modes')">🚀 New Outpost</button><button class="hbtn" ${has?"":"disabled"} onclick="go('hub')">Continue Outpost</button></div>
+   <p class="home-info">${esc(info)}</p></div>`}
+
 /* ============ RENDER ============ */
 function chips(){
   $("#chips").innerHTML=
@@ -338,8 +387,8 @@ function chips(){
    (S.astro?'<span class="chip">'+S.astro.icon+' '+esc(S.astro.name)+'</span>':'')+
    '<span class="chip">Reliability '+S.rel+'/'+MD().rel+'%</span>';
 }
-function render(){chips();stopLanding();
-  const f={modes,hub,brief:renderBrief,mission:renderMission,debrief:renderDebrief,lab,quiz:renderQuiz,codex,landing:renderLanding,crew,choice,outpost:renderOutpost}[V];
+function render(){chips();stopLanding();document.body.classList.toggle("home",V==="home");
+  const f={home:renderHome,modes,hub,brief:renderBrief,mission:renderMission,debrief:renderDebrief,lab,quiz:renderQuiz,codex,landing:renderLanding,crew,choice,outpost:renderOutpost}[V];
   $("#app").innerHTML=f();if(V==="landing")initLanding();if(V==="mission")animRover();
 }
 function stageBar(){
@@ -351,7 +400,7 @@ function barH(label,v,max,cls){const p=Math.max(0,Math.min(100,v/max*100));retur
 function modes(){
   return '<div class="card"><h2>Choose your training mode</h2><p class="muted">'+(S.mode?'Starting a new simulation erases your current progress.':'Pick how tough Mission Control should be. You can start over in another mode any time.')+'</p></div><div class="grid">'+
    Object.keys(MODES).map(k=>{const m=MODES[k];return '<div class="card" style="margin:0"><h3>'+m.icon+' '+m.n+'</h3><p class="small muted">'+m.tag+'</p><p class="small">'+esc(m.desc)+'</p><button class="primary" onclick="pickMode(\''+k+'\')">Start '+m.n+'</button></div>'}).join("")+'</div>'+
-   (S.mode?'<div class="row" style="margin-top:12px"><button onclick="go(\'hub\')">← Keep current simulation</button></div>':'');
+   (S.mode?'<div class="row" style="margin-top:12px"><button onclick="go(\'hub\')">← Keep current simulation</button></div>':'')+'<div class="row" style="margin-top:12px"><button onclick="go(\'home\')">🏠 Home</button></div>';
 }
 function pickMode(k){
   S=fresh();S.mode=k;const m=MODES[k];S.budget=m.free?99999:Math.round(220*m.budget);
@@ -766,7 +815,7 @@ function buildOutpost(){
   checkUnlocks();grantIfBroke();save();chips();render();
 }
 
-if(!S.mode)V="modes";
+V="home";
 render();
 </script>
 </body>
