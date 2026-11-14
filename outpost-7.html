@@ -139,6 +139,10 @@ details summary{cursor:pointer;margin:6px 0;color:var(--muted)}
 .msec{border-bottom:1px solid var(--line);padding:4px 0}
 .msec summary{font-size:1rem;color:var(--text)}
 .msec table{margin:8px 0}
+.livecv{width:100%;max-width:none;display:block;border-radius:8px;margin:6px 0;border:0}
+.livedot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;margin-right:6px;animation:lp 1.2s ease-in-out infinite}
+@keyframes lp{0%,100%{opacity:.35}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.livedot{animation:none}}
 .msec ul,.msec ol{padding-left:20px;margin:6px 0}
 @media(max-width:700px){.hudcard .hbars{grid-template-columns:repeat(4,minmax(0,1fr))}.hbar{grid-template-columns:100px 1fr 60px}}
 </style>
@@ -706,7 +710,7 @@ function pickEvent(when){
   const ok=e=>!EVAIDS.includes(e.id)&&(when==="morning"?!NIGHTONLY.includes(e.id):true);
   let pool=EV.filter(e=>ok(e)&&!S.seen.includes(e.id));if(!pool.length){S.seen=[];pool=EV.filter(ok)}
   let list=pool;
-  if(S.day-S.lastRad>=5&&rnd()<.35){const r=pool.filter(e=>e.type==="rad");if(r.length)list=r}
+  if((S.day-S.lastRad>=5||REALSUN.big)&&rnd()<.35){const r=pool.filter(e=>e.type==="rad");if(r.length)list=r}
   else{list=[];pool.forEach(e=>{for(let i=0;i<(e.type==="rad"?2:1);i++)list.push(e)})}
   const e=list[Math.floor(rnd()*list.length)];S.seen.push(e.id);if(e.type==="rad"){S.lastRad=S.day;S.alert=1}return e}
 function pickEva(){const l=EV.filter(e=>EVAIDS.includes(e.id));return l[Math.floor(rnd()*l.length)]}
@@ -804,7 +808,7 @@ function dataBody(){
   let modP=0;S.modules.forEach(m=>{const f=MODK[m.t].fx;if(f.power)modP+=f.power;if(f.spower&&!dark)modP+=f.spower});
   const cats={};S.modules.forEach(m=>{const c=CATN[MODK[m.t].cat];cats[c]=(cats[c]||0)+1});
   const life=[{k:"o2",n:"Oxygen",c:VC.o2},{k:"water",n:"Water",c:VC.water},{k:"food",n:"Food",c:VC.food}],crew=[{k:"power",n:"Power",c:VC.power},{k:"health",n:"Health",c:VC.health},{k:"morale",n:"Morale",c:VC.morale}];
-  return `<p class="small muted">Data charts update every morning. Hover or tap a chart to read values. Every chart has a table view.</p>`+
+  return liveHTML()+`<p class="small muted">The charts below update every morning. Hover or tap a chart to read values. Every chart has a table view.</p>`+
   barChart("Meters right now (percent of full)",RES.map(r=>({l:r[1]+" "+r[2],v:S.res[r[0]]/(r[0]==="power"?cap:100)*100,t:Math.round(S.res[r[0]])+(r[0]==="power"?" / "+cap:" / 100")+(S.res[r[0]]<25?" ⚠️ low":"")})).concat([{l:"☢️ Radiation dose",v:S.rad/RADMAX*100,t:S.rad.toFixed(1)+" / "+RADMAX+" mSv"+(S.rad>=120?" ⚠️ sickness range":"")}]),{max:100})+
   lineChart("life","Oxygen, water and food by day",life,{max:100})+
   lineChart("crew","Power, health and morale by day",crew,{max:Math.max(100,cap)})+
@@ -837,6 +841,68 @@ function renderManual(){
   ${sec("12. A good first three days",`<ol><li>Day 1: fix any low meter, brush the solar panels, then <b>build something small</b> that makes power or air.</li><li>Day 2: explore the nearby field site for your first sample, and read the Base tab.</li><li>Day 3: build a <b>radiation shelter</b> (regolith). Check the Data tab. Keep 2 to 3 hours free for problems.</li><li>Before day 16: build a <b>Kilopower reactor</b> and batteries for the dark days.</li></ol>`)}
   </div>`}
 /* ============ TRAINING ACADEMY ============ */
+
+/* ============ LIVE TELEMETRY + LIVE SPACE WEATHER ============ */
+const REALSUN={ok:false,big:false,cls:"",kp:null};
+let LIVE=null,NOAA=null;
+const LCOL=["#3987e5","#d95926","#199e70","#c98500","#d55181","#0ca30c"];
+const LCH=[
+ {id:"rad",n:"Radiation dose rate",u:"µSv/h",dec:0,t:()=>{const b=RADBASE*MD().radm*shieldF()*siteOf().radf*1000/24;return S.alert?b*(5+Math.random()*7):b},sd:t=>t*.035,span:t=>Math.max(t*.6,20)},
+ {id:"pow",n:"Power bus",u:"% of storage",dec:1,t:()=>S.res.power/capP()*100,sd:()=>.7,span:()=>8},
+ {id:"o2",n:"Cabin oxygen pressure",u:"kPa",dec:2,t:()=>21*(.72+.28*S.res.o2/100),sd:()=>.05,span:()=>.6},
+ {id:"hab",n:"Habitat temperature",u:"°C",dec:1,t:()=>21-(S.res.power<30?(30-S.res.power)*.15:0)-(isDark(S.day)?.4:0),sd:()=>.08,span:()=>1.2},
+ {id:"out",n:"Outside temperature",u:"°C",dec:1,t:()=>surfaceTemp(),sd:()=>isDark(S.day)?.6:1.5,span:()=>isDark(S.day)?4:25},
+ {id:"hr",n:"Crew heart rate",u:"bpm",dec:0,t:()=>62+(100-S.res.morale)*.1+(100-S.res.health)*.15+(S.alert?18:0),sd:()=>1.1,span:()=>14}
+];
+function gauss(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+function liveHTML(){
+  return `<div class="chartbox"><div class="row spread"><h4><span class="livedot"></span> Live telemetry from Outpost 7</h4><button class="sm" id="livebtn" onclick="liveToggle()">⏸ Pause</button></div><p class="small muted">Sensor traces update several times a second. They are simulated from the state of your base: the dose rate climbs during a solar storm, power follows your batteries, cabin air follows your oxygen.</p><canvas id="livecv" class="livecv" aria-label="Live telemetry traces"></canvas><div id="livevals" class="small muted"></div></div>
+  <div class="chartbox"><h4>☀️ Live space weather from NOAA</h4><div id="noaa" class="small muted">Contacting NOAA Space Weather Prediction Center…</div><canvas id="noaacv" class="livecv" style="display:none" aria-label="GOES solar X-ray flux, last 6 hours"></canvas><div id="noaakp" class="small"></div></div>`}
+function startLive(){
+  stopLive();const cv=$("#livecv");if(!cv)return;
+  const dpr=Math.min(2,window.devicePixelRatio||1),W=Math.max(300,cv.clientWidth||600),H=LCH.length*58+6;cv.width=W*dpr;cv.height=H*dpr;cv.style.height=H+"px";
+  LIVE={W,H,dpr,paused:false,n:150,hist:LCH.map(()=>[]),v:LCH.map(d=>d.t()),spike:LCH.map(()=>0)};
+  for(let k=0;k<LIVE.n;k++)liveStep();
+  LIVE.timer=setInterval(()=>{if(!LIVE.paused){liveStep();liveDraw()}},250);liveDraw();loadNoaa();LIVE.noaaT=setInterval(loadNoaa,60000)}
+function stopLive(){if(LIVE){clearInterval(LIVE.timer);clearInterval(LIVE.noaaT);LIVE=null}}
+function liveToggle(){if(!LIVE)return;LIVE.paused=!LIVE.paused;const b=$("#livebtn");if(b)b.textContent=LIVE.paused?"▶ Resume":"⏸ Pause"}
+function liveStep(){
+  LCH.forEach((d,i)=>{const tgt=d.t();let v=LIVE.v[i];v+=(tgt-v)*.18+gauss()*d.sd(tgt);if(Math.random()<.015)LIVE.spike[i]=(Math.random()<.5?-1:1)*d.sd(tgt)*(4+Math.random()*4);v+=LIVE.spike[i];LIVE.spike[i]*=.55;LIVE.v[i]=v;const h=LIVE.hist[i];h.push(v);if(h.length>LIVE.n)h.shift()})}
+function liveDraw(){
+  const cv=$("#livecv");if(!cv||!LIVE)return;const c=cv.getContext("2d"),{W,H,dpr}=LIVE;c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,W,H);
+  c.fillStyle="#111a3d";c.fillRect(0,0,W,H);
+  const lx=150,rx=W-76,row=58;
+  LCH.forEach((d,i)=>{const y0=i*row+3,h=row-6,hist=LIVE.hist[i],tgt=d.t(),span=d.span(tgt),lo=tgt-span,hi=tgt+span;
+    c.strokeStyle="#2b3a78";c.lineWidth=1;c.beginPath();c.moveTo(lx,y0+h/2);c.lineTo(rx,y0+h/2);c.stroke();c.beginPath();c.moveTo(lx,y0+h);c.lineTo(rx,y0+h);c.stroke();
+    c.beginPath();hist.forEach((v,k)=>{const x=lx+(k/(LIVE.n-1))*(rx-lx),y=y0+h-((Math.min(hi,Math.max(lo,v))-lo)/(hi-lo))*h;k?c.lineTo(x,y):c.moveTo(x,y)});c.strokeStyle=LCOL[i];c.lineWidth=2;c.lineJoin="round";c.stroke();
+    const last=hist[hist.length-1],ey=y0+h-((Math.min(hi,Math.max(lo,last))-lo)/(hi-lo))*h;c.fillStyle=LCOL[i];c.beginPath();c.arc(rx,ey,4,0,6.3);c.fill();c.strokeStyle="#111a3d";c.lineWidth=2;c.stroke();
+    c.fillStyle="#eaf0ff";c.font="12px Audiowide,sans-serif";c.textBaseline="middle";c.textAlign="left";c.fillText(d.n,8,y0+h/2-8);c.fillStyle="#9aa8d8";c.font="11px Audiowide,sans-serif";c.fillText(d.u,8,y0+h/2+9);
+    c.fillStyle="#eaf0ff";c.font="13px Audiowide,sans-serif";c.textAlign="left";c.fillText(last.toFixed(d.dec),rx+10,ey)});
+  const lv=$("#livevals");if(lv&&Math.random()<.2)lv.textContent="Dose so far this month: "+S.rad.toFixed(1)+" mSv · Next reading in 0.25 s"}
+/* ---- real NOAA data (works when the page can reach the network) ---- */
+function flareClass(f){if(f>=1e-4)return "X"+(f/1e-4).toFixed(1);if(f>=1e-5)return "M"+(f/1e-5).toFixed(1);if(f>=1e-6)return "C"+(f/1e-6).toFixed(1);if(f>=1e-7)return "B"+(f/1e-7).toFixed(1);return "A"+Math.max(0.1,f/1e-8).toFixed(1)}
+async function getJSON(url){const ac=new AbortController(),t=setTimeout(()=>ac.abort(),6000);try{const r=await fetch(url,{signal:ac.signal,cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);return await r.json()}finally{clearTimeout(t)}}
+async function loadNoaa(){
+  const box=$("#noaa");if(!box)return;
+  try{
+    const xr=await getJSON("https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json");
+    const pts=xr.filter(p=>(p.energy||"").indexOf("0.1-0.8")>=0&&(p.flux||p.observed_flux)>0).map(p=>({t:new Date(p.time_tag).getTime(),f:Number(p.flux||p.observed_flux)}));
+    if(!pts.length)throw new Error("no X-ray data");
+    const last=pts[pts.length-1];REALSUN.ok=true;REALSUN.cls=flareClass(last.f);REALSUN.big=pts.slice(-72).some(p=>p.f>=1e-5);
+    let kpTxt="";try{const kp=await getJSON("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json");const rows=kp.slice(1).filter(r=>r.length>=2);const lastK=rows[rows.length-1];REALSUN.kp=parseFloat(lastK[1]);kpTxt=` · Planetary Kp index <b>${REALSUN.kp}</b> (${REALSUN.kp>=5?"geomagnetic storm":REALSUN.kp>=4?"active":"quiet"})`}catch(_){}
+    box.innerHTML=`<span class="livedot"></span> <b>LIVE</b> from NOAA (GOES satellite). Solar X-ray flux right now: <b>class ${REALSUN.cls}</b>${REALSUN.big?" · ⚠️ a medium or large flare happened in the last 6 hours":""}${kpTxt}. Updated ${new Date(last.t).toUTCString().slice(17,22)} UTC. The solid line is the real Sun over the last 6 hours.`;
+    drawNoaa(pts)}
+  catch(err){
+    REALSUN.ok=false;box.innerHTML=`📡 The live NOAA feed is not available in this window (${esc(String(err.message||err)).slice(0,60)}). Some hosted previews block outside network access. Open the game file directly in a browser to see the real Sun live. The simulated telemetry above still runs.`;const cv=$("#noaacv");if(cv)cv.style.display="none"}}
+function drawNoaa(pts){
+  const cv=$("#noaacv");if(!cv)return;cv.style.display="block";const dpr=Math.min(2,window.devicePixelRatio||1),W=Math.max(300,cv.clientWidth||600),H=190;cv.width=W*dpr;cv.height=H*dpr;cv.style.height=H+"px";
+  const c=cv.getContext("2d");c.setTransform(dpr,0,0,dpr,0,0);c.fillStyle="#111a3d";c.fillRect(0,0,W,H);
+  const L=46,R=40,T=10,B=22,pw=W-L-R,ph=H-T-B,t0=pts[0].t,t1=pts[pts.length-1].t,lmin=-8,lmax=-3,Y=f=>T+ph-((Math.log10(Math.max(1e-9,f))-lmin)/(lmax-lmin))*ph,X=t=>L+(t-t0)/(t1-t0||1)*pw;
+  [["A",-8],["B",-7],["C",-6],["M",-5],["X",-4]].forEach(([n,e])=>{const y=Y(Math.pow(10,e));c.strokeStyle="#2b3a78";c.lineWidth=1;c.beginPath();c.moveTo(L,y);c.lineTo(L+pw,y);c.stroke();c.fillStyle="#9aa8d8";c.font="11px Audiowide,sans-serif";c.textAlign="right";c.textBaseline="middle";c.fillText(n,L-8,y)});
+  c.beginPath();pts.forEach((p,i)=>{const x=X(p.t),y=Y(p.f);i?c.lineTo(x,y):c.moveTo(x,y)});c.strokeStyle="#c98500";c.lineWidth=2;c.lineJoin="round";c.stroke();
+  const lp=pts[pts.length-1];c.fillStyle="#c98500";c.beginPath();c.arc(X(lp.t),Y(lp.f),4,0,6.3);c.fill();c.strokeStyle="#111a3d";c.lineWidth=2;c.stroke();
+  c.fillStyle="#eaf0ff";c.font="12px Audiowide,sans-serif";c.textAlign="left";c.fillText(flareClass(lp.f),X(lp.t)-pw*.12,Math.max(T+8,Y(lp.f)-12));
+  c.fillStyle="#9aa8d8";c.font="10px Audiowide,sans-serif";c.textAlign="center";c.fillText("6 hours ago",L+30,H-6);c.fillText("now",L+pw-10,H-6);c.save();c.translate(10,T+ph/2);c.rotate(-Math.PI/2);c.fillText("X-ray flux (W/m²)",0,0);c.restore()}
 
 /* ============ ASTRONAUT TRAINING ACADEMY (real training) ============ */
 const trainTimelineSVG=()=>`<svg viewBox="0 0 600 96" class="chart" role="img" aria-label="Astronaut career timeline: selection, about two years of candidate training, mission assignment, mission training, flight"><rect width="600" height="96" fill="var(--surf)" rx="8"/><g font-size="11" fill="#10131f"><rect x="14" y="16" width="86" height="26" fill="#d55181" rx="3"/><text x="57" y="33" text-anchor="middle">Selection</text><rect x="104" y="16" width="170" height="26" fill="#3987e5" rx="3"/><text x="189" y="33" text-anchor="middle">Candidate training (about 2 years)</text><rect x="278" y="16" width="100" height="26" fill="#c98500" rx="3"/><text x="328" y="33" text-anchor="middle">Assignment</text><rect x="382" y="16" width="130" height="26" fill="#199e70" rx="3"/><text x="447" y="33" text-anchor="middle">Mission training</text><rect x="516" y="16" width="72" height="26" fill="#d95926" rx="3"/><text x="552" y="33" text-anchor="middle">Flight</text></g><text x="14" y="70" font-size="11" fill="var(--muted2)">In 2021 NASA chose 10 candidates from more than 12,000 applicants.</text></svg>`;
@@ -1086,9 +1152,9 @@ function renderHome(){
 /* ============ RENDER ============ */
 function chips(){$("#chips").innerHTML=S.mode&&S.phase!=="home"?`<span class="chip">${MD().icon} ${MD().n}</span><span class="chip">🌙 Day ${Math.min(S.day,NIGHTS)}/${NIGHTS}</span><span class="chip">⭐ ${S.sp} SP</span>`:""}
 function render(){
-  chips();document.body.classList.toggle("home",V==="home");
+  stopLive();chips();document.body.classList.toggle("home",V==="home");
   const f={home:renderHome,modes,lore:renderLore,training:renderTraining,howto:renderHowTo,manual:renderManual,day:renderDay,event:renderEvent,night:renderNight,end:renderEnd,quiz:renderQuiz}[V];
-  $("#app").innerHTML=f();if(V==="day"&&S.tab==="build"){bRefresh()}}
+  $("#app").innerHTML=f();if(V==="day"&&S.tab==="build"){bRefresh()}if(V==="day"&&S.tab==="data"){startLive()}}
 V="home";render();
 
 </script>
