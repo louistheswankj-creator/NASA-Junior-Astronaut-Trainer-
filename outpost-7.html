@@ -83,6 +83,12 @@ body.wide main{max-width:1700px}body.nosb .side{display:none}body.nosb .play{gri
 .sidelist{max-height:340px;overflow:auto;padding-right:2px}
 .sidelist .opt{margin:4px 0;padding:6px 10px}
 @media(max-width:900px){.play{grid-template-columns:1fr}.side{position:static}}
+.rise{animation:rise 6s ease-in forwards}.fall{animation:fall 6s ease-out forwards}
+@keyframes rise{from{transform:translateY(0)}to{transform:translateY(-420px)}}
+@keyframes fall{from{transform:translateY(-200px)}to{transform:translateY(60px)}}
+.flame{transform-origin:50% 0;animation:fl .15s ease-in-out infinite alternate}@keyframes fl{from{transform:scaleY(.8)}to{transform:scaleY(1.2)}}
+.puff{animation:pf 3s ease-out forwards}@keyframes pf{from{transform:scale(.6);opacity:.6}to{transform:scale(2.6);opacity:0}}
+@media(prefers-reduced-motion:reduce){.rise,.fall,.flame,.puff{animation:none}}
 </style>
 </head>
 <body>
@@ -103,11 +109,11 @@ const clamp=(v,a=0,b=100)=>Math.max(a,Math.min(b,v));
 const RES=[["o2","🫧","Oxygen"],["water","💧","Water"],["food","🍲","Food"],["power","⚡","Power"],["health","❤️","Health"],["morale","🙂","Morale"]];
 const RIC=Object.fromEntries(RES.map(r=>[r[0],r[1]]));
 const MODES={
- cadet:{n:"Cadet",icon:"🌱",tag:"Ages 6–9 · gentle",desc:"Slower supply drain, milder events, 8 energy a day, tips, and a wide landing pad.",dr:.6,sev:.6,en:16,pad:1.3,vy:4,hints:true},
- junior:{n:"Junior",icon:"🧑‍🚀",tag:"Ages 9–12 · standard",desc:"The standard survival challenge with 7 energy a day and tips from Mission Control.",dr:1,sev:1,en:14,pad:1,vy:3,hints:true},
- commander:{n:"Commander",icon:"🎖️",tag:"Challenge",desc:"Faster supply drain, harsher events, 6 energy a day, a smaller landing pad. No tips.",dr:1.25,sev:1.3,en:13,pad:.85,vy:2.5,hints:false},
- veteran:{n:"Veteran",icon:"🛰️",tag:"Hard",desc:"Supplies vanish fast, events hit hard, only 5 energy a day and a tiny pad. No tips.",dr:1.5,sev:1.7,en:11,pad:.7,vy:2,hints:false},
- free:{n:"Free Play",icon:"🧪",tag:"Sandbox",desc:"You cannot lose. Experiment with every choice and refill supplies any time.",dr:1,sev:1,en:18,pad:1,vy:3,hints:true,free:true}
+ cadet:{n:"Cadet",icon:"🌱",tag:"Ages 6–9 · gentle",desc:"Slower supply drain, milder events, 8 energy a day, tips, and a wide landing pad.",dr:.6,sev:.6,en:16,samp:2,pad:1.3,vy:4,hints:true},
+ junior:{n:"Junior",icon:"🧑‍🚀",tag:"Ages 9–12 · standard",desc:"The standard survival challenge with 7 energy a day and tips from Mission Control.",dr:1,sev:1,en:14,samp:3,pad:1,vy:3,hints:true},
+ commander:{n:"Commander",icon:"🎖️",tag:"Challenge",desc:"Faster supply drain, harsher events, 6 energy a day, a smaller landing pad. No tips.",dr:1.25,sev:1.3,en:13,samp:4,pad:.85,vy:2.5,hints:false},
+ veteran:{n:"Veteran",icon:"🛰️",tag:"Hard",desc:"Supplies vanish fast, events hit hard, only 5 energy a day and a tiny pad. No tips.",dr:1.5,sev:1.7,en:11,samp:4,pad:.7,vy:2,hints:false},
+ free:{n:"Free Play",icon:"🧪",tag:"Sandbox",desc:"You cannot lose. Experiment with every choice and refill supplies any time.",dr:1,sev:1,en:18,samp:1,pad:1,vy:3,hints:true,free:true}
 };
 const DAY={o2:12,water:11,food:9,gen:60,use:14,health:3,morale:3,dust:18},NIGHT={o2:12,water:11,food:9,power:44,morale:5};
 const MD=()=>MODES[S.mode||"junior"];
@@ -310,12 +316,19 @@ const EV=[
   opts:[{l:"Talk to family on the radio",ctx:"Costs a little power but helps a lot.",fx:{morale:10,power:-3}},{l:"Work through the night",ctx:"Keep busy, but exhaustion builds.",fx:{morale:-12}}],
   real:["Long-duration astronauts","On long missions crews report loneliness. Space agencies schedule family calls and care packages."]}
 ];
+const SAMPLES=[
+ {id:"anorthosite",icon:"⚪",n:"Anorthosite",fact:"Pale rock from the Moon's old crust. It shows the Moon once had an ocean of magma."},
+ {id:"basalt",icon:"⚫",n:"Basalt",fact:"Dark volcanic rock from the maria. It proves lava once flowed across the Moon."},
+ {id:"breccia",icon:"🟤",n:"Breccia",fact:"Broken fragments welded together by impacts. It records the Moon's bombardment history."},
+ {id:"regolith",icon:"🟫",n:"Regolith",fact:"Loose, sharp moon soil. It could one day be turned into bricks, shields and oxygen."},
+ {id:"glass",icon:"🟠",n:"Volcanic glass beads",fact:"Tiny orange glass beads like those Apollo 17 found, made in fire fountains about 3.6 billion years ago."}
+];
 const FAIL={
  o2:["Out of oxygen","Without air you cannot last more than minutes. Scrubbers, plants and making oxygen from moon rock keep crews alive. Real spacecraft have backup systems for exactly this."],
  health:["Health collapsed","Radiation, cold, thirst and hunger wore your body down. Exercise, medical checks and shelter all matter on long missions."]
 };
 /* ============ STATE ============ */
-function fresh(){return {mode:null,phase:"home",sp:0,day:1,res:{o2:100,water:100,food:100,power:100,health:100,morale:80},dust:0,armor:0,energy:7,penalty:0,suitDust:0,cabinDust:0,crates:[],done:{},ev:null,seen:[],evLog:[],report:null,over:null,arrival:null,log:[],lastFx:""}}
+function fresh(){return {mode:null,phase:"home",sp:0,day:1,res:{o2:100,water:100,food:100,power:100,health:100,morale:80},dust:0,armor:0,energy:7,penalty:0,samples:[],loaded:[],suitDust:0,cabinDust:0,crates:[],done:{},ev:null,seen:[],evLog:[],report:null,over:null,arrival:null,log:[],lastFx:""}}
 let S=(function(){try{const t=localStorage.getItem(SAVE_KEY);if(t)return Object.assign(fresh(),JSON.parse(t))}catch(e){}return fresh()})();
 function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(S))}catch(e){}}
 let V="home",TAB="chores",Q=null,LND=null;
@@ -357,6 +370,7 @@ function tip(){
   let low=RES.slice(0,4).concat([RES[4]]).sort((a,b)=>S.res[a[0]]-S.res[b[0]])[0],t;
   const m={o2:"Service the oxygen scrubbers.",water:"Recycle water.",food:"Cook a meal.",power:"Brush the solar panels or save power.",health:"Exercise or do a medical check."};
   if(S.res[low[0]]<45)t=low[2]+" is low. "+m[low[0]];
+  else if(S.day>=4&&S.loaded.length<MD().samp)t="Mission needs "+MD().samp+" rock samples. Collect them at the field site and load them at the pad.";
   else if(S.dust>50)t="Panels are dusty, so brush them before you lose power.";
   else if(S.energy>=3)t="You have spare energy. Science tasks earn Science Points.";
   else t="When you are out of energy, end the day.";
@@ -410,6 +424,10 @@ function goSci(i){const a=ACT[i];if(!needEnergy(a[1]))return;goStation(isOutSci(
 function goQuiz(){if(!needEnergy(1))return;goStation("comms",startQuiz)}
 function goCrate(k){goStation("pad",()=>openCrate(k))}
 function goBed(){goStation("bunk")}
+function goSample(){if(!needEnergy(2))return;goStation("field",collectSample)}
+function goLoad(){if(!needEnergy(1))return;goStation("pad",loadSamples)}
+function collectSample(){const left=SAMPLES.filter(t=>!S.samples.includes(t.id));if(!left.length){toast("You have every sample type already.");return}if(S.energy<2){toast("Not enough energy. Go to bed to end the day.");return}const t=left[Math.floor(rnd()*left.length)];S.energy-=2;S.res.o2=clamp(S.res.o2-3);S.suitDust=clamp(S.suitDust+25);S.samples.push(t.id);S.sp+=8;log("⛏️ Collected "+t.n+" → +8 SP");toast(t.icon+" "+t.n+": "+t.fact);save();refresh()}
+function loadSamples(){const n=S.samples.filter(x=>!S.loaded.includes(x)).length;if(!n){toast("No new samples to load.");return}if(S.energy<1){toast("Not enough energy. Go to bed to end the day.");return}S.energy-=1;S.loaded=S.samples.slice();log("📦 Loaded "+n+" sample(s) into the return capsule.");toast("Samples are safe in the return capsule: "+S.loaded.length+"/"+MD().samp);save();refresh()}
 function openCrate(k){const i=S.crates[k];if(i===undefined)return;const s=SUP[i],t=applyFx(s.fx,0);S.crates.splice(k,1);log("📦 Opened "+s.n+" → "+t);toast("Crate opened: "+s.n);save();refresh()}
 function actionsAt(id){
   const A=[];
@@ -417,9 +435,10 @@ function actionsAt(id){
   if(chore&&id!=="comms"){const c=CH.find(x=>x.id===chore);A.push({l:c.icon+" "+c.n,ctx:c.ctx,dis:S.energy<c.e||(c.max&&S.armor>=c.max),run:()=>doChore(chore)})}
   if(id==="comms"){const c=CH.find(x=>x.id==="call");A.push({l:"📞 Call home (⚡1)",ctx:c.ctx,dis:S.energy<1,run:()=>doChore("call")});A.push({l:"❓ Mission Control quiz (⚡1)",ctx:"Answer questions to earn Science Points.",dis:S.energy<1,run:startQuiz})}
   if(id==="lab"||id==="field")A.push({l:"🔬 Pick a task",ctx:"Open the Science tab in the sidebar and choose a task.",run:()=>{TAB="science";refresh()}});
+  if(id==="field")A.push({l:"⛏️ Collect a rock sample (⚡2)",ctx:"Dig a sample tube. Each rock type tells scientists something new.",dis:S.energy<2||S.samples.length>=SAMPLES.length,run:collectSample});
   if(id==="bunk")A.push({l:"🛏️ Sleep and end Day "+S.day,ctx:S.energy>0?"You still have "+S.energy+" energy left.":"A good night's rest.",run:endDay});
   if(id==="dustoff")A.push({l:"🧼 Brush the dust off your suit",ctx:"Moon dust is sharp and sticks to everything. Brush it off before you go inside.",run:()=>{if(S.suitDust<1)toast("Your suit is already clean.");else{S.suitDust=0;log("🧼 Suit brushed clean.");toast("Suit clean!");refresh()}}});
-  if(id==="pad"){if(!S.crates.length)toast("No crates here. Order supplies in the Supplies tab.");S.crates.forEach((i,k)=>A.push({l:"📦 Open: "+SUP[i].n,ctx:SUP[i].ctx,run:()=>openCrate(k)}))}
+  if(id==="pad"){if(S.samples.length>S.loaded.length)A.push({l:"📦 Load samples into the return capsule (⚡1)",ctx:"The capsule takes your samples home.",dis:S.energy<1,run:loadSamples});if(!S.crates.length&&S.samples.length<=S.loaded.length)toast("Nothing to open or load here yet.");S.crates.forEach((i,k)=>A.push({l:"📦 Open: "+SUP[i].n,ctx:SUP[i].ctx,run:()=>openCrate(k)}))}
   return A}
 function execStation(id){
   const A=actionsAt(id);if(!A.length)return;
@@ -535,6 +554,8 @@ function draw(){
   for(const id in STN)drawStn(c,id,STN[id],SD);
   // crates
   S.crates.forEach((i,k)=>{const x=692+k*26,y=492;c.fillStyle="rgba(0,0,0,.4)";c.fillRect(x+SD.x*.4,y+SD.y*.5,22,18);box(c,x,y,22,18,"#c08a4a","#7a4f1c",2);c.fillStyle="#fbbf24";c.fillRect(x+9,y,4,18);c.strokeStyle="rgba(0,0,0,.3)";c.beginPath();c.moveTo(x,y+9);c.lineTo(x+22,y+9);c.stroke()});
+  {const f=STN.field;S.samples.forEach((id,k)=>{const col={anorthosite:"#e5e7eb",basalt:"#3b3b4c",breccia:"#8d7058",regolith:"#a39c8c",glass:"#f59e0b"}[id],tx=f.x-34+k*9,ty=f.y+32;c.fillStyle="rgba(0,0,0,.4)";c.fillRect(tx+SD.x*.3,ty+SD.y*.3,6,12);box(c,tx,ty,6,12,"#dbeafe","#93c5fd",2);c.fillStyle=col;c.fillRect(tx+1,ty+5,4,6)});
+    const pc={x:826,y:470};c.fillStyle="rgba(0,0,0,.4)";c.beginPath();c.ellipse(pc.x+SD.x*.6,pc.y+SD.y*.6,16,12,0,0,6.3);c.fill();box(c,pc.x-14,pc.y-18,28,36,"#e5e7eb","#9aa0b8",8);c.fillStyle="#6b4a2a";c.fillRect(pc.x-14,pc.y+10,28,8);for(let i=0;i<MD().samp;i++)led(c,pc.x-9+i*6,pc.y-8,i<S.loaded.length?"#4ade80":"#6b7280");plate(c,pc.x,pc.y+30,"Return capsule")}
   // plates and lamps
   for(const id in STN){const s=STN[id];const ly=id==="solar"?s.y+24:id==="pad"?s.y+52:id==="shelter"?s.y+36:id==="field"?s.y+34:s.y+30;plate(c,s.x,ly,s.label);const lc=lampCol(id);if(lc)led(c,s.x+(id==="solar"?20:22),s.y-(id==="solar"?10:19),lc)}
   if(P.near){const s=STN[P.near];c.strokeStyle="#ffb347";c.lineWidth=2;c.globalAlpha=.55+.45*Math.sin(P.t*6);c.beginPath();c.arc(s.x,s.y,34,0,6.3);c.stroke();c.globalAlpha=1}
@@ -579,10 +600,14 @@ window.addEventListener("keyup",e=>{const k=e.key.toLowerCase();const m={arrowup
 /* ============ SIDEBAR ============ */
 function renderSide(){
   const el=$("#side");if(!el)return;const free=MD().free;
-  const tabs=[["chores","🛠️ Survive"],["science","🔬 Science"],["supplies","📦 Supplies"],["base","🏠 Base"]];
+  const tabs=[["chores","🛠️ Survive"],["science","🔬 Science"],["mission","🎯 Mission"],["supplies","📦 Supplies"],["base","🏠 Base"]];
   let body="";
   if(TAB==="chores")body=CH.map(c=>{const maxed=c.max&&S.armor>=c.max;const fx=Object.entries(c.fx).filter(([k])=>k!=="armor"&&k!=="dust").map(([k,v])=>RIC[k]+(v>0?"+":"")+v).join(" ");return `<button class="opt" ${S.energy<c.e||maxed?"disabled":""} onclick="goChore('${c.id}')">${c.icon} ${esc(c.n)} <span class="small muted">⚡${c.e} ${fx}${c.id==="dust"?" 🧹":""}${c.id==="shelter"?" 🛡️+1":""}</span><span class="ctx">${OUTCH[c.id]?"🌑 Outside · ":"🏠 Inside · "}${esc(c.ctx)}</span></button>`}).join("");
   else if(TAB==="science")body=`<p class="small muted">Walk to the lab (inside) or field site (outside). Tasks use energy and power. Points depend on complexity, price and value. More unlock on days 3 and 5.</p>`+ACT.map((a,i)=>{const dn=S.done[i],lock=unlockDay(a)>S.day,pc=Math.ceil(a[2]/4),dis=dn||lock||S.energy<a[1];return `<button class="opt" style="opacity:${dn?.55:1}" ${dis?"disabled":""} onclick="goSci(${i})"><b>${esc(a[0])}</b> <span class="tag">${isOutSci(a)?"🌑 field":"🔬 lab"}</span><span class="tag">⚡${a[1]}</span><span class="tag">power -${pc}</span><span class="tag good">+${actPts(a)} SP</span>${lock?`<span class="tag">unlocks day ${unlockDay(a)}</span>`:""}${dn?`<span class="ctx">${esc(a[5])}</span>`:""}</button>`}).join("");
+  else if(TAB==="mission"){const req=MD().samp,col=S.samples.length,ld=S.loaded.length,ns=S.over&&S.over.win?7:S.day-1;const g=(k,t)=>`<p class="small ${k?"good":""}">${k?"✅":"⬜"} ${t}</p>`;
+    body=`<p><b>Mission goals</b></p>${g(ns>=7,"Survive 7 nights ("+ns+"/7)")}${g(col>=req,"Collect "+req+" rock samples ("+col+"/"+req+")")}${g(ld>=req,"Load them into the return capsule ("+ld+"/"+req+")")}<p class="small muted">Survive all 7 nights and deliver the samples to finish the mission.</p>`+
+    `<button class="opt" ${S.energy<2||col>=SAMPLES.length?"disabled":""} onclick="goSample()">⛏️ Collect a rock sample <span class="tag">⚡2</span><span class="ctx">🌑 Outside at the field site. Costs suit oxygen and puts dust on your suit.</span></button><button class="opt" ${S.energy<1||ld>=col?"disabled":""} onclick="goLoad()">📦 Load samples into the capsule <span class="tag">⚡1</span><span class="ctx">🌑 At the landing pad.</span></button>`+
+    (col?`<p class="small"><b>Your samples</b></p>`+S.samples.map(id=>{const t=SAMPLES.find(x=>x.id===id);return `<p class="small">${t.icon} ${esc(t.n)} ${S.loaded.includes(id)?"📦 loaded":"🎒 carried"}</p>`}).join(""):"")}
   else if(TAB==="supplies")body=`<p class="small muted">Order a crate from Mission Control with Science Points. It lands on the pad outside. You have <b>${S.sp} SP</b>.</p>`+SUP.map((s,i)=>`<button class="opt" ${S.sp<s.cost&&!free?"disabled":""} onclick="buySup(${i})">${esc(s.n)} <span class="tag">${free?"free":s.cost+" SP"}</span><span class="ctx">${esc(s.ctx)}</span></button>`).join("")+(S.crates.length?`<p class="small"><b>Crates waiting on the pad:</b></p>`+S.crates.map((i,k)=>`<button class="opt" onclick="goCrate(${k})">📦 ${esc(SUP[i].n)} <span class="ctx">Walk to the landing pad and open it.</span></button>`).join(""):"")+`<button class="opt" ${S.energy<1?"disabled":""} onclick="goQuiz()">❓ Mission Control quiz <span class="tag">⚡1</span><span class="ctx">Walk to the comms console and answer questions for Science Points.</span></button>`;
   else{const dr=MD().dr,gen=Math.round(DAY.gen*(1-S.dust/100)),use=Math.round(DAY.use*dr);body=`<div class="small"><p><b>Tonight's forecast</b></p><p>☀️ Solar today: +${gen} power, base use −${use}. Panels ${S.dust}% dusty.</p><p>🌙 Day and night together use about 🫧 −${Math.round((DAY.o2+NIGHT.o2)*dr)} 💧 −${Math.round((DAY.water+NIGHT.water)*dr)} 🍲 −${Math.round((DAY.food+NIGHT.food)*dr)}, and the night heaters use ⚡ −${Math.round(NIGHT.power*dr)}.</p><p>🛡️ Shelter armor: ${S.armor}/3 · 🧤 Suit dust: ${Math.round(S.suitDust)}% · Cabin dust: ${Math.round(S.cabinDust)}%</p><p>🌙 Nights survived: ${S.day-1} of 7 · ⭐ ${S.sp} SP</p><p class="muted">The Six Lost Outposts: dead by CO₂, dust storm, solar flare, meteorite, cold and despair. Do not be number seven.</p></div>`+(free?`<button class="sm" onclick="S.res={o2:100,water:100,food:100,power:100,health:100,morale:100};S.dust=0;S.cabinDust=0;save();refresh()">🧪 Refill all</button>`:"")+(S.log.length?`<div class="log" style="margin-top:8px">${S.log.map(l=>`<p>${esc(l)}</p>`).join("")}</div>`:"")}
   el.innerHTML=`<div class="row spread"><b>🌑 Day ${S.day} of 7</b><span class="chip">🕒 ${clock()}</span><span class="chip">⚡ ${S.energy}h left</span></div><div class="grid2">${RES.map(r=>`<div>${barH(r[1]+" "+r[2],S.res[r[0]],100)}</div>`).join("")}</div>${tip()}<div class="row tabsrow">${tabs.map(t=>`<button class="sm ${TAB===t[0]?"primary":""}" onclick="TAB='${t[0]}';renderSide()">${t[1]}</button>`).join("")}</div><div class="sidelist">${body}</div><button class="primary" style="width:100%;margin-top:8px" onclick="goBed()">🛏️ Go to bed (end day)</button>`;
@@ -624,14 +649,30 @@ function resolveNight(){
   if(r.health<=0&&!S.over){S.over={win:false,cause:"health",why:cause||"health"}}
   if(m.free){S.over=null;for(const k in r)r[k]=Math.max(r[k],k==="health"?10:5)}
   clampRes();
-  if(!S.over){if(S.day>=7){S.over={win:true};S.sp+=50;L.push("🌅 Dawn on night 7. You survived! +50 SP")}
+  if(!S.over){if(S.day>=7){if(S.loaded.length>=m.samp){S.over={win:true};ES=0;S.sp+=50+S.loaded.length*10;L.push("🌅 Dawn on Day 8. You survived all 7 nights! +"+(50+S.loaded.length*10)+" SP")}else{S.over={win:false,incomplete:true};L.push("🌅 Dawn on Day 8. You survived, but only "+S.loaded.length+" of "+m.samp+" samples were delivered.")}}
     else{S.day++;const lowM=r.morale<25?2:0;S.energy=Math.max(2,m.en-S.penalty-lowM);if(lowM)L.push("😞 Low morale: 2 fewer hours of energy tomorrow.");if(S.penalty)L.push("🔧 Repairs from the event: -"+S.penalty+" energy tomorrow.");S.penalty=0}}
   S.report=L;log("🌙 Night "+(S.over&&!S.over.win?S.day:S.day-(S.over?0:1))+" complete.")}
 function renderNight(){
-  return `<div class="card"><h2>🌙 Night ${S.day-1} report</h2>${baseScene(true)}<div class="log" style="max-height:none">${S.report.map(l=>`<p>${esc(l)}</p>`).join("")}</div></div><div class="card">${resBars()}<button class="primary" onclick="startDay()">☀️ Start Day ${S.day} →</button></div>`}
+  return `<div class="card"><h2>🌙 Night ${S.over?S.day:S.day-1} report</h2>${baseScene(true)}<div class="log" style="max-height:none">${S.report.map(l=>`<p>${esc(l)}</p>`).join("")}</div></div><div class="card">${resBars()}${S.over?`<button class="primary" onclick="go('end')">See the result →</button>`:`<button class="primary" onclick="startDay()">☀️ Start Day ${S.day} →</button>`}</div>`}
+/* ============ ENDING ============ */
+let ES=0;
+function capsuleSVG(){return `<path d="M-14,10 L-9,-22 Q0,-34 9,-22 L14,10Z" fill="#eceff8" stroke="#8a90a8"/><path d="M-14,10 L14,10 L10,16 L-10,16Z" fill="#6b4a2a"/><circle cx="0" cy="-8" r="4" fill="#60a5fa"/><path d="M-9,-22 L9,-22" stroke="#cbd0e6"/>`}
+function endSceneLift(){return `<svg viewBox="0 0 800 340" class="scene" role="img" aria-label="Return capsule lifting off from the Moon"><defs><linearGradient id="ls" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#02040f"/><stop offset="1" stop-color="#1a2760"/></linearGradient><radialGradient id="le" cx=".35" cy=".35"><stop offset="0" stop-color="#9fd0ff"/><stop offset="1" stop-color="#1e4fa8"/></radialGradient></defs><rect width="800" height="340" fill="url(#ls)"/>${starsSVG(80,800,340,13)}<circle cx="640" cy="80" r="34" fill="url(#le)"/><path d="M0,290 Q200,262 400,285 T800,280 V340 H0Z" fill="#6a6e8a"/><rect y="300" width="800" height="40" fill="#585c78"/><ellipse cx="400" cy="302" rx="70" ry="8" fill="rgba(0,0,0,.3)"/><g class="rise"><g transform="translate(400,282) scale(1.6)">${capsuleSVG()}<path class="flame" d="M-6,16 L0,44 L6,16Z" fill="#fb923c"/><path class="flame" d="M-3,16 L0,32 L3,16Z" fill="#fde047"/></g></g><circle class="puff" cx="400" cy="292" r="26" fill="#ddd" opacity=".5"/><circle class="puff" cx="360" cy="296" r="18" fill="#ddd" opacity=".4"/><circle class="puff" cx="440" cy="296" r="18" fill="#ddd" opacity=".4"/></svg>`}
+function endSceneSplash(){return `<svg viewBox="0 0 800 340" class="scene" role="img" aria-label="Capsule splashing down in the ocean"><defs><linearGradient id="ss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset="1" stop-color="#f9b27c"/></linearGradient></defs><rect width="800" height="340" fill="url(#ss)"/><circle cx="130" cy="210" r="30" fill="#ffe08a" opacity=".9"/><rect y="230" width="800" height="110" fill="#1d4f91"/><path d="M0,236 Q50,228 100,236 T200,236 T300,236 T400,236 T500,236 T600,236 T700,236 T800,236" stroke="#8cc4ff" stroke-width="2" fill="none"/><g transform="translate(640,236)"><path d="M-70,0 L70,0 L55,22 L-55,22Z" fill="#cfd3e6"/><rect x="-20" y="-24" width="40" height="24" fill="#e5e7eb"/><rect x="-6" y="-38" width="3" height="14" fill="#cbd0e6"/><rect x="-24" y="-8" width="10" height="6" fill="#60a5fa"/></g><g class="fall"><g transform="translate(330,150)"><path d="M-70,-90 Q-35,-140 0,-90 Q35,-140 70,-90" fill="none"/><path d="M-60,-62 Q-30,-120 0,-62Z" fill="#f97316"/><path d="M0,-62 Q30,-120 60,-62Z" fill="#fff"/><path d="M-20,-66 Q0,-96 20,-66Z" fill="#f97316"/><path d="M-55,-62 L-6,10 M55,-62 L6,10 M0,-62 L0,10" stroke="#ddd" stroke-width="1.2"/><g transform="translate(0,26) scale(1.2)">${capsuleSVG()}</g></g></g></svg>`}
+function rankOf(){const r=S.res,avg=(r.o2+r.water+r.food+r.power+r.health+r.morale)/6;return avg>=70?["🥇","Gold: Commander of Outpost 7"]:avg>=45?["🥈","Silver: Outpost 7 Operator"]:["🥉","Bronze: Outpost 7 Survivor"]}
 function renderEnd(){
   const o=S.over,evs=[...new Set(S.evLog)].map(id=>EV.find(e=>e.id===id)),cards=evs.map(e=>`<div class="debrief"><b>${e.icon} ${esc(e.real[0])}</b><br>${esc(e.real[1])}</div>`).join("");
-  if(o.win)return `<div class="card"><h2>🏅 You survived 7 nights!</h2><p class="good">You are the first crew to outlast the Six Lost Outposts.</p>${baseScene(false)}<p>Outpost 7 is still running. Oxygen ${S.res.o2}, water ${S.res.water}, food ${S.res.food}, power ${S.res.power}, health ${S.res.health}, morale ${S.res.morale}.</p><p class="good"><b>Science Points: ${S.sp}</b> (includes +50 for surviving)</p><h3>The real missions behind your nights</h3>${cards||"<p class='muted'>No events recorded.</p>"}<div class="row" style="margin-top:10px"><button class="primary" onclick="go('modes')">Play again</button><button onclick="go('home')">Home</button></div></div>`;
+  if(o.win){
+    const nav=(n,l)=>`<div class="row" style="margin-top:10px"><button class="primary" onclick="ES=${n};render()">${l}</button></div>`;
+    if(ES===0)return `<div class="card"><h2>🏅 Survived 7 nights!</h2>${baseScene(false)}<p class="good"><b>Nights survived: 7 of 7</b></p><p>Dawn breaks on Day 8. The radio crackles: <i>"Outpost 7, this is Mission Control. We have your signal. Six crews came before you, and none lasted the week. You are the first to survive."</i></p><p>Oxygen ${S.res.o2} · Water ${S.res.water} · Food ${S.res.food} · Power ${S.res.power} · Health ${S.res.health} · Morale ${S.res.morale}</p><p>Your ${S.loaded.length} rock samples are sealed in the return capsule.</p>${nav(1,"🚀 Launch the return capsule →")}</div>`;
+    if(ES===1)return `<div class="card"><h2>🚀 Liftoff</h2>${endSceneLift()}<p>The capsule fires its engine. With only one sixth of Earth's gravity and no air, it climbs fast and silent. Your samples are heading home.</p>${nav(2,"🌍 Return to Earth →")}</div>`;
+    if(ES===2)return `<div class="card"><h2>🌊 Splashdown</h2>${endSceneSplash()}<p>Days later the capsule hits Earth's air at about 11 km/s. The heat shield glows, parachutes open and the capsule splashes down. A recovery ship hoists it aboard.</p>${nav(3,"🔬 Lab results →")}</div>`;
+    const rk=rankOf();
+    return `<div class="card"><h2>🔬 Mission complete: the lab results</h2><p>Scientists open your sample tubes:</p><div class="grid">${S.loaded.map(id=>{const t=SAMPLES.find(x=>x.id===id);return `<div class="card" style="margin:0"><h3>${t.icon} ${esc(t.n)}</h3><p class="small">${esc(t.fact)}</p></div>`}).join("")}</div>
+    <div class="debrief"><b>${rk[0]} ${rk[1]}</b><br>Survived 7 of 7 nights with ${S.loaded.length} sample${S.loaded.length===1?"":"s"} delivered. Final Science Points: <b>${S.sp}</b></div>
+    <h3>The real missions behind your nights</h3>${cards||"<p class='muted'>No events recorded.</p>"}
+    <div class="row" style="margin-top:10px"><button class="primary" onclick="go('modes')">Play again</button><button onclick="ES=0;render()">Replay ending</button><button onclick="go('home')">Home</button></div></div>`}
+  if(o.incomplete)return `<div class="card"><h2>🌑 Survived, but the mission is incomplete</h2>${baseScene(false)}<p class="good"><b>Nights survived: 7 of 7</b></p><p>You lived through all 7 nights, but Mission Control needed <b>${MD().samp} rock samples</b> loaded in the return capsule and you only delivered <b>${S.loaded.length}</b>. The science was the whole reason for Outpost 7.</p><p class="muted">Next time, collect samples at the field site early and load them at the landing pad.</p><h3>What the real missions teach</h3>${cards||"<p class='muted'>No events recorded.</p>"}<div class="row" style="margin-top:10px"><button class="primary" onclick="pickMode('${S.mode}')">Try again</button><button onclick="go('modes')">Change mode</button><button onclick="go('home')">Home</button></div></div>`;
   const f=FAIL[o.cause]||FAIL.health;
   return `<div class="card"><h2>💥 Outpost 7 was lost on night ${S.day}</h2>${baseScene(true)}<p><b>${esc(f[0])}.</b> ${esc(f[1])}</p><p class="muted">Cause chain: ${esc(o.why)}.</p><h3>What the real missions teach</h3>${cards||"<p class='muted'>No events recorded.</p>"}<div class="row" style="margin-top:10px"><button class="primary" onclick="pickMode('${S.mode}')">Try again</button><button onclick="go('modes')">Change mode</button><button onclick="go('home')">Home</button></div></div>`}
 /* ============ MODES SCREEN ============ */
@@ -663,7 +704,7 @@ const LOSTEV={co2:1,dust:2,flare:3,meteor:4,cold:5,homesick:6,recycler:6};
 function renderLore(){
   return `<div class="card"><h2>📜 Outpost 7: mission briefing</h2><p class="muted">In this story, six lunar outposts were built before yours. Every crew was lost within the first week. Mission Control calls this the Six Lost Crews.</p>
   <div class="grid">${LOST.map(l=>`<div class="card" style="margin:0"><h3>🕯️ Outpost ${l.n}</h3><p class="small muted">Lost on night ${l.night}</p><p class="small">${esc(l.cause)}</p></div>`).join("")}</div>
-  <p>Outpost 7 is yours. <b>Survive 7 nights.</b> Keep oxygen, water, food, power, health and morale above zero, and learn from the six crews who came before you.</p>
+  <p>Outpost 7 is yours. <b>Survive 7 nights and bring home ${MD().samp} rock samples.</b> Keep oxygen, water, food, power, health and morale above zero, and learn from the six crews who came before you.</p>
   <button class="primary" onclick="go('landing')">🛬 Begin the landing →</button></div>`}
 /* ============ LANDING ============ */
 function renderLanding(){
