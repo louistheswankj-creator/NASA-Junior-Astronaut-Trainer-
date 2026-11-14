@@ -6,17 +6,17 @@
 <title>Space Sparks – Junior Astronaut Mission Trainer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#070b1f;--panel:#111a3d;--panel2:#1a2656;--text:#eaf0ff;--muted:#9aa8d8;--accent:#ffb347;--good:#4ade80;--bad:#f87171;--blue:#60a5fa;--line:#2b3a78}
 *{box-sizing:border-box}
-body{margin:0;background:radial-gradient(ellipse at top,#16215a 0,#070b1f 60%) fixed;color:var(--text);font:16px/1.55 Nunito,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+body{margin:0;background:radial-gradient(ellipse at top,#16215a 0,#070b1f 60%) fixed;color:var(--text);font:16px/1.55 Lora,Georgia,"Times New Roman",serif;min-height:100vh}
 header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(7,11,31,.85);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
 header h1{margin:0;font-size:1.15rem;letter-spacing:.5px}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 12px;font-size:.85rem}
 main{max-width:1000px;margin:0 auto;padding:16px}
-h1,h2,h3{font-family:'Space Grotesk',Nunito,system-ui,sans-serif;letter-spacing:.2px}h2{margin:.2em 0 .4em}h3{margin:.2em 0}
+h1,h2,h3{font-family:'Playfair Display',Lora,Georgia,serif;letter-spacing:0}h2{margin:.2em 0 .4em}h3{margin:.2em 0}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:12px 0}
 .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
 button{font:inherit;font-weight:700;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
@@ -573,11 +573,11 @@ function drawLanding(me){
   c.fillStyle="#fff";for(let i=0;i<40;i++)c.fillRect((i*97)%700,(i*53)%200,1.5,1.5);
   c.fillStyle="#3b3f5c";c.beginPath();c.moveTo(0,420);me.terr.forEach(p=>c.lineTo(p[0],p[1]));c.lineTo(700,420);c.fill();
   c.fillStyle="#4ade80";c.fillRect(me.pad-me.pw/2,353,me.pw,5);
-  c.fillStyle="#9aa8d8";c.font="12px sans-serif";c.fillText("PAD",me.pad-10,375);
+  c.fillStyle="#9aa8d8";c.font="12px Georgia,serif";c.fillText("PAD",me.pad-10,375);
   if(me.dust>4){c.fillStyle="rgba(200,200,200,.25)";c.beginPath();c.arc(L.x,me.ground(L.x)-6,me.dust*1.5,0,6.3);c.fill()}
   c.fillStyle="#e5e7eb";c.fillRect(L.x-10,L.y-10,20,16);c.fillStyle="#fbbf24";c.fillRect(L.x-14,L.y+6,6,6);c.fillRect(L.x+8,L.y+6,6,6);
   if(KEY.u&&L.fuel>0&&me.state==="flying"){c.fillStyle="#fb923c";c.beginPath();c.moveTo(L.x-5,L.y+6);c.lineTo(L.x,L.y+22);c.lineTo(L.x+5,L.y+6);c.fill()}
-  c.fillStyle="#eaf0ff";c.font="13px sans-serif";
+  c.fillStyle="#eaf0ff";c.font="13px Georgia,serif";
   c.fillText("Vertical "+(L.vy/10).toFixed(1)+" m/s   Sideways "+(L.vx/10).toFixed(1)+" m/s   Fuel "+Math.max(0,Math.round(L.fuel))+"%",10,18);
 }
 function endLanding(ok,msg){
