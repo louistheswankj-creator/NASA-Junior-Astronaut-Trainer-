@@ -4,19 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Space Sparks – Junior Astronaut Mission Trainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#070b1f;--panel:#111a3d;--panel2:#1a2656;--text:#eaf0ff;--muted:#9aa8d8;--accent:#ffb347;--good:#4ade80;--bad:#f87171;--blue:#60a5fa;--line:#2b3a78}
 *{box-sizing:border-box}
-body{margin:0;background:radial-gradient(ellipse at top,#16215a 0,#070b1f 60%) fixed;color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+body{margin:0;background:radial-gradient(ellipse at top,#16215a 0,#070b1f 60%) fixed;color:var(--text);font:16px/1.55 Nunito,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
 header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(7,11,31,.85);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
 header h1{margin:0;font-size:1.15rem;letter-spacing:.5px}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 12px;font-size:.85rem}
 main{max-width:1000px;margin:0 auto;padding:16px}
-h2{margin:.2em 0 .4em}h3{margin:.2em 0}
+h1,h2,h3{font-family:'Space Grotesk',Nunito,system-ui,sans-serif;letter-spacing:.2px}h2{margin:.2em 0 .4em}h3{margin:.2em 0}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:12px 0}
 .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
-button{font:inherit;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
+button{font:inherit;font-weight:700;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
 button:hover:not(:disabled){border-color:var(--accent)}
 button:disabled{opacity:.4;cursor:not-allowed}
 button.primary{background:var(--accent);color:#1b1200;border-color:var(--accent);font-weight:700}
@@ -212,15 +215,26 @@ const DEBRIEF = {
   lrv:["Apollo 15, 16 and 17","The LRV let astronauts explore much farther than walking. It was electric, with non-rechargeable batteries, so every kilometre counted."]
 };
 
+/* ============ MODES ============ */
+const MODES={
+ cadet:{n:"Cadet",icon:"🌱",tag:"Ages 6–9 · gentle",desc:"Extra funding, calmer weather, forgiving landings, tips during missions and the Survival Lab.",budget:1.5,fund:1.5,storm:.4,rock:.4,steps:4,rel:50,pad:1.3,vy:4,need:-1,hints:true,lab:true},
+ junior:{n:"Junior",icon:"🧑‍🚀",tag:"Ages 9–12 · standard",desc:"The standard training path with hints and the Survival Lab. Balanced budget and hazards.",budget:1,fund:1,storm:1,rock:1,steps:0,rel:75,pad:1,vy:3,need:0,hints:true,lab:true},
+ commander:{n:"Commander",icon:"🎖️",tag:"Challenge",desc:"Tighter budget, more storms and rocks, shorter missions, smaller landing pads. No tips and no Survival Lab.",budget:.8,fund:.8,storm:1.4,rock:1.3,steps:-2,rel:85,pad:.85,vy:2.5,need:0,hints:false,lab:false},
+ veteran:{n:"Veteran",icon:"🛰️",tag:"Hard",desc:"Scarce funding, frequent dust storms, brutal rocks, tiny pads, 95% reliability and stricter building limits.",budget:.6,fund:.6,storm:1.8,rock:1.7,steps:-3,rel:95,pad:.7,vy:2,need:1,hints:false,lab:false},
+ free:{n:"Free Play",icon:"🧪",tag:"Sandbox",desc:"Unlimited budget, every rover unlocked, and buttons to jump to any stage. Experiment with every choice.",budget:1,fund:1,storm:1,rock:1,steps:0,rel:75,pad:1,vy:3,need:0,hints:true,lab:true,free:true}
+};
+const MD=()=>MODES[S.mode||"junior"];
+const fund=p=>Math.round(p*2*MD().fund);
+
 /* ============ STATE ============ */
 function fresh(){return {budget:220,sp:0,stage:1,samples:{moon:{},mars:{}},site:null,rel:0,landings:0,astro:null,printer:false,
-  rovers:{mapp:1},junior:true,done:{},energy:6,day:1,quiz:0,pending:null,flags:{},missions:0,outpost:null}}
-let S = (function(){try{const t=localStorage.getItem(SAVE_KEY);if(t){const o=JSON.parse(t);return Object.assign(fresh(),o)}}catch(e){}return fresh()})();
+  rovers:{mapp:1},mode:null,done:{},energy:6,day:1,quiz:0,pending:null,flags:{},missions:0,outpost:null}}
+let S = (function(){try{const t=localStorage.getItem(SAVE_KEY);if(t){const o=JSON.parse(t);const r=Object.assign(fresh(),o);if(o.mode===undefined)r.mode='junior';return r}}catch(e){}return fresh()})();
 function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(S))}catch(e){}}
 let V = "hub", M = null, Q = null, LND = null, OD = null, brief = null;
 
 function toast(msg){const t=$("#toast");t.innerHTML='<div class="toast">'+esc(msg)+'</div>';clearTimeout(toast.t);toast.t=setTimeout(()=>t.innerHTML="",2800)}
-function award(pts,why){S.sp+=pts;const f=pts*2;S.budget+=f;toast("+"+pts+" Science Points ("+why+") · +$"+f+"M funding");checkUnlocks();save()}
+function award(pts,why){S.sp+=pts;const f=fund(pts);S.budget+=f;toast("+"+pts+" Science Points ("+why+") · +$"+f+"M funding");checkUnlocks();save()}
 function checkUnlocks(){for(const k in ROVERS){const r=ROVERS[k];if(r.unlock>0&&S.sp>=r.unlock&&!S.rovers[k]){S.rovers[k]=1;toast("Unlocked rover: "+r.n)}}}
 function grantIfBroke(){if(S.budget<40){S.budget+=60;toast("Mission Control approves a $60M recovery grant. Try a different design!")}}
 function go(v){V=v;render();window.scrollTo(0,0)}
@@ -228,12 +242,12 @@ function go(v){V=v;render();window.scrollTo(0,0)}
 /* ============ RENDER ============ */
 function chips(){
   $("#chips").innerHTML=
-   '<span class="chip">⭐ '+S.sp+' SP</span><span class="chip">💰 $'+Math.round(S.budget)+'M</span>'+
+   '<span class="chip">'+MD().icon+' '+MD().n+'</span><span class="chip">⭐ '+S.sp+' SP</span><span class="chip">💰 '+(MD().free?'∞':'$'+Math.round(S.budget)+'M')+'</span>'+
    (S.astro?'<span class="chip">'+S.astro.icon+' '+esc(S.astro.name)+'</span>':'')+
-   '<span class="chip">Reliability '+S.rel+'%</span>';
+   '<span class="chip">Reliability '+S.rel+'/'+MD().rel+'%</span>';
 }
 function render(){chips();stopLanding();
-  const f={hub,brief:renderBrief,mission:renderMission,debrief:renderDebrief,lab,quiz:renderQuiz,codex,landing:renderLanding,crew,choice,outpost:renderOutpost}[V];
+  const f={modes,hub,brief:renderBrief,mission:renderMission,debrief:renderDebrief,lab,quiz:renderQuiz,codex,landing:renderLanding,crew,choice,outpost:renderOutpost}[V];
   $("#app").innerHTML=f();if(V==="landing")initLanding();
 }
 function stageBar(){
@@ -242,27 +256,43 @@ function stageBar(){
 }
 function barH(label,v,max,cls){const p=Math.max(0,Math.min(100,v/max*100));return '<div class="small">'+label+' '+Math.round(v)+'</div><div class="bar '+(cls||(p<25?'danger':p<50?'warn':''))+'"><i style="width:'+p+'%"></i></div>'}
 
+function modes(){
+  return '<div class="card"><h2>Choose your training mode</h2><p class="muted">'+(S.mode?'Starting a new simulation erases your current progress.':'Pick how tough Mission Control should be. You can start over in another mode any time.')+'</p></div><div class="grid">'+
+   Object.keys(MODES).map(k=>{const m=MODES[k];return '<div class="card" style="margin:0"><h3>'+m.icon+' '+m.n+'</h3><p class="small muted">'+m.tag+'</p><p class="small">'+esc(m.desc)+'</p><button class="primary" onclick="pickMode(\''+k+'\')">Start '+m.n+'</button></div>'}).join("")+'</div>'+
+   (S.mode?'<div class="row" style="margin-top:12px"><button onclick="go(\'hub\')">← Keep current simulation</button></div>':'');
+}
+function pickMode(k){
+  S=fresh();S.mode=k;const m=MODES[k];S.budget=m.free?99999:Math.round(220*m.budget);
+  if(m.free)Object.keys(ROVERS).forEach(r=>{if(ROVERS[r].unlock>=0&&ROVERS[r].mass>0)S.rovers[r]=1});
+  save();toast(m.n+" mode started");go("hub");
+}
+function jump(n){
+  if(n>=2){WORLDS.moon.types.forEach(t=>S.samples.moon[t]=1);S.site=S.site||"mare";S.pending=null}
+  if(n>=3){S.rel=100}
+  S.stage=n;S.pending=null;save();go("hub");
+}
 function hub(){
   const st=S.stage;
   let mission="";
   if(S.pending==="site")mission='<button class="primary" onclick="go(\'choice\')">Stage 1 complete: choose your outpost site →</button>';
   else if(S.pending==="method")mission='<button class="primary" onclick="go(\'choice\')">Stage 2 complete: choose your building method →</button>';
   else if(st===1)mission='<button class="primary" onclick="startBrief(\'moon\')">🛻 Plan a Moon rover mission</button>';
-  else if(st===2)mission='<button class="primary" onclick="go(\'landing\')">🛬 Landing practice ($5M)</button> <button class="primary" onclick="go(\'crew\')" '+(S.rel<75?'disabled':'')+'>👩‍🚀 Launch crew ('+(S.rel<75?'needs 75% reliability':'ready')+')</button>';
+  else if(st===2)mission='<button class="primary" onclick="go(\'landing\')">🛬 Landing practice ($5M)</button> <button class="primary" onclick="go(\'crew\')" '+(S.rel<MD().rel?'disabled':'')+'>👩‍🚀 Launch crew ('+(S.rel<MD().rel?'needs '+MD().rel+'% reliability':'ready')+')</button>';
   else if(st===3)mission='<button class="primary" onclick="startOutpost()">🏗️ Plan the outpost</button>';
   else mission='<button class="primary" onclick="startBrief(\'mars\')">🔴 Mars training (bonus world)</button>';
+  if(MD().free&&st<4)mission+=' <button onclick="startBrief(\'mars\')">🔴 Try Mars</button>';
   const moon=Object.keys(S.samples.moon),mars=Object.keys(S.samples.mars);
   return '<div class="card"><h2>Mission Control</h2>'+stageBar()+
    '<p class="muted">'+({1:"Scout the Moon with rovers. Collect and send back all 4 Moon sample types to unlock human landings.",
-     2:"Prove a reliable landing system until your reliability reaches 75%, then launch a crew with the Apollo-style rover.",
+     2:"Prove a reliable landing system until your reliability reaches "+MD().rel+"%, then launch a crew with the Apollo-style rover.",
      3:"Build a working outpost. Pick materials that trade weight, strength and cost, then survive a stress test.",
      4:"Moon outpost working! Try the harder Mars world with a 1-sol command delay."})[st>3?4:st]+'</p>'+
    '<div class="row">'+mission+'</div></div>'+
    '<div class="grid">'+
    '<div class="card"><h3>🧪 Samples</h3><p class="small">Moon: '+(moon.length?moon.map(esc).join(", "):"none yet")+' ('+moon.length+'/4)</p>'+(mars.length?'<p class="small">Mars: '+mars.map(esc).join(", ")+' ('+mars.length+'/4)</p>':"")+'</div>'+
-   '<div class="card"><h3>⭐ Earn Science Points</h3><div class="row">'+(S.junior?'<button onclick="go(\'lab\')">🧑‍🚀 Survival Lab</button>':'')+'<button onclick="startQuiz()">❓ Quiz</button></div><p class="small muted">Points depend on complexity, price and value of the task. Each point also brings in funding.</p></div>'+
+   '<div class="card"><h3>⭐ Earn Science Points</h3><div class="row">'+(MD().lab?'<button onclick="go(\'lab\')">🧑‍🚀 Survival Lab</button>':'')+'<button onclick="startQuiz()">❓ Quiz</button></div><p class="small muted">Points depend on complexity, price and value of the task. Each point also brings in funding.</p></div>'+
    '<div class="card"><h3>📖 Rover catalog</h3><button onclick="go(\'codex\')">Open catalog</button></div>'+
-   '<div class="card"><h3>⚙️ Simulation</h3><label class="small"><input type="checkbox" '+(S.junior?'checked':'')+' onchange="S.junior=this.checked;save();render()"> Junior mode (Survival Lab and hints)</label><br><button class="sm" style="margin-top:8px" onclick="if(confirm(\'Start a new simulation? Progress will be lost.\')){S=fresh();save();go(\'hub\')}">🔄 New simulation</button></div>'+
+   '<div class="card"><h3>⚙️ Simulation</h3><p class="small">Mode: <b>'+MD().icon+' '+MD().n+'</b> <span class="muted">'+MD().tag+'</span></p><button class="sm" onclick="go(\'modes\')">🔄 New simulation / change mode</button>'+(MD().free?'<p class="small muted" style="margin-top:8px">Free Play: jump to a stage</p><div class="row"><button class="sm" onclick="jump(1)">Stage 1</button><button class="sm" onclick="jump(2)">Stage 2</button><button class="sm" onclick="jump(3)">Stage 3</button><button class="sm" onclick="jump(4)">Mars</button></div>':'')+'</div>'+
    '</div>';
 }
 
@@ -288,7 +318,7 @@ function renderQuiz(){
    q.a.map((x,j)=>'<button class="opt '+(Q.picked!==null?(j===q.c?'sel':''):'')+'" '+(Q.picked!==null?'disabled':'')+' onclick="answerQ('+j+')">'+esc(x)+'</button>').join("")+
    (Q.picked!==null?'<div class="debrief">'+(Q.picked===q.c?'<b class="good">Correct! +'+q.v+' SP</b>':'<b class="bad">Not quite.</b>')+' '+esc(q.e)+'</div><button class="primary" onclick="Q.i++;Q.picked=null;render()">Next →</button>':'')+'</div>';
 }
-function answerQ(j){const q=Q.qs[Q.i];Q.picked=j;if(j===q.c){Q.right++;Q.pts+=q.v;S.sp+=q.v;S.budget+=q.v*2;checkUnlocks();save()}render()}
+function answerQ(j){const q=Q.qs[Q.i];Q.picked=j;if(j===q.c){Q.right++;Q.pts+=q.v;S.sp+=q.v;S.budget+=fund(q.v);checkUnlocks();save()}render()}
 
 /* ============ CATALOG ============ */
 function codex(){
@@ -316,7 +346,7 @@ function renderBrief(){
     if(d==="dust"&&brief.pick.power==="nuclear")return"";
     return '<div class="card"><h3>'+DEC[d].title+'</h3>'+DEC[d].opts.map(o=>'<button class="opt '+(brief.pick[d]===o.id?'sel':'')+'" onclick="brief.pick[\''+d+'\']=\''+o.id+'\';render()">'+o.label+' <span class="small muted">(+'+o.mass+' kg, +$'+o.cost+'M)</span><span class="ctx">'+esc(o.ctx)+'</span></button>').join("")+'</div>'}).join("");
   return '<div class="card"><div class="row spread"><h2>'+W.icon+' '+(brief.crewed?"Crewed Moon mission briefing":W.n+" rover briefing")+'</h2><button onclick="go(\'hub\')">← Back</button></div>'+
-   '<p class="muted">Delay: '+esc(W.delay)+(S.junior?' Junior hint: no choice is correct; each one fails in a different situation.':'')+'</p></div>'+rovers+decs+
+   '<p class="muted">Delay: '+esc(W.delay)+(MD().hints?' Tip: no choice is correct; each one fails in a different situation.':'')+'</p></div>'+rovers+decs+
    '<div class="card"><div class="row spread"><div>'+barH("Ship weight "+t.mass+" / "+(brief.crewed?"–":cap)+" kg",brief.crewed?0:t.mass,cap,over?'danger':'blue')+'</div><div><b>Launch cost: $'+t.launch+'M</b> (budget $'+Math.round(S.budget)+'M)</div></div>'+
    (over?'<p class="bad">Too heavy! Heavier ships cost more and this one cannot launch. Drop something.</p>':'')+(broke?'<p class="bad">Not enough budget. Earn Science Points to raise funding.</p>':'')+
    '<button class="primary" '+(over||broke?'disabled':'')+' onclick="launch()">🚀 Launch</button></div>';
@@ -327,8 +357,8 @@ function launch(){
   const t=bTotals(),W=WORLDS[brief.wk],R=ROVERS[brief.rover],p=brief.pick;
   S.budget-=t.launch;S.missions++;
   const crewed=brief.crewed;
-  M={wk:brief.wk,W,R,crewed,opts:Object.assign({},p),power:100,wheel:100,dust:0,storm:0,pos:0,at:null,carried:[],sent:[],used:{},steps:crewed?(p.bat==="ext"?16:12):W.steps,
-     over:false,why:"",queue:[],log:[],ev:{},sp:0,wasted:0,cost:t.launch,instr:0,total:crewed?(p.bat==="ext"?16:12):W.steps};
+  M={wk:brief.wk,W,R,crewed,opts:Object.assign({},p),power:100,wheel:100,dust:0,storm:0,pos:0,at:null,carried:[],sent:[],used:{},steps:crewed?(p.bat==="ext"?16:12):W.steps+MD().steps,
+     over:false,why:"",queue:[],log:[],ev:{},sp:0,wasted:0,cost:t.launch,instr:0,total:crewed?(p.bat==="ext"?16:12):W.steps+MD().steps};
   if(crewed){M.opts.power="battery"}
   addLog("Launch successful! "+(crewed?"Crew ready on the Moon.":R.n+" has landed on "+W.n+"."),"ok");
   save();go("mission");
@@ -354,7 +384,17 @@ function renderMission(){
    (solar&&M.opts.dust==="shield"?btn({t:"clean"},"⚡ Clean panels",dis):"")+(M.opts.tools==="full"?btn({t:"instr"},"🔬 Instrument",dis):"")+
    '<button class="sm" '+(dis?'disabled':'')+' onclick="finishMission(\'You ended the mission.\')">🛑 End mission</button></div>'+
    (q?'<div class="card" style="margin:10px 0 0"><b>Command queue</b> ('+M.queue.length+'/'+W.queue+') <span class="small muted">Orders arrive a sol late, so you plan blind.</span><div class="small">'+(M.queue.length?M.queue.map((a,i)=>(i+1)+'. '+actLabel(a)).join(" → "):"Add 3 commands, then send them.")+'</div><div class="row" style="margin-top:6px"><button class="primary sm" '+(M.queue.length<W.queue||dis?'disabled':'')+' onclick="sendQueue()">Send queue</button><button class="sm" onclick="M.queue=[];render()">Clear</button></div></div>':'')+
-   '</div><div class="card"><b>Mission log</b><div class="log">'+M.log.join("")+'</div></div>';
+   '</div>'+tip()+'<div class="card"><b>Mission log</b><div class="log">'+M.log.join("")+'</div></div>';
+}
+function tip(){
+  if(!MD().hints||M.over)return"";const solar=M.opts.power==="solar";let t;
+  if(M.power<25)t="Power is low. Charge or wait before driving.";
+  else if(M.storm>0&&solar)t="Dust storm! Solar charging is almost zero. Save power and wait it out.";
+  else if(M.carried.length&&M.steps<5)t="Time is almost up. Transmit your samples now!";
+  else if(M.at&&!M.used["c"+M.at])t="You are at a site. Collect a sample.";
+  else if(M.carried.length)t="Transmit your samples to Earth so they count.";
+  else t="Pick a site and drive. Closer sites cost less power.";
+  return '<div class="card"><span class="small good">💡 Tip: '+esc(t)+'</span></div>';
 }
 function act(a){
   if(M.over)return;
@@ -379,7 +419,7 @@ function step(a){
       cost=Math.max(2,Math.round(Math.abs(s.pos-M.pos)*4*M.R.drive*tl));
       if(M.power-cost<1)fail("Not enough power for that drive ("+cost+" needed).");
       else{M.power-=cost;M.pos=s.pos;M.at=s.id;addLog("Drove to "+s.n+" (-"+cost+" power).");
-        if(!cr&&rnd()<s.rocky*W.rock*1.4){const d=M.opts.wheels==="tough"?7:22;M.wheel-=d;M.ev.wheel=1;addLog("Sharp rocks scratch the wheels! (-"+d+"% wheel health)","er");
+        if(!cr&&rnd()<s.rocky*W.rock*MD().rock*1.4){const d=M.opts.wheels==="tough"?7:22;M.wheel-=d;M.ev.wheel=1;addLog("Sharp rocks scratch the wheels! (-"+d+"% wheel health)","er");
           if(M.wheel<=0){M.ev.stuck=1;addLog("A wheel failed. The rover is stuck here.","er")}}}
     }
   }else if(a.t==="collect"){
@@ -412,7 +452,7 @@ function tick(){
   if(!cr){
     if(M.storm>0){M.storm--;M.dust=Math.min(100,M.dust+8);if(M.storm===0)addLog("The dust storm clears.")}
     else{M.dust=Math.min(100,M.dust+4);if(solar&&M.opts.dust!=="shield"&&rnd()<.08&&M.dust>20){M.dust=Math.max(0,M.dust-25);addLog("A gust of wind clears some dust off the panels.")}
-      if(rnd()<M.W.storm){M.storm=4;M.ev.dust=1;addLog("A dust storm begins!"+(solar?" Solar output collapses.":" Your nuclear battery keeps going."),"ev")}}
+      if(rnd()<M.W.storm*MD().storm){M.storm=4;M.ev.dust=1;addLog("A dust storm begins!"+(solar?" Solar output collapses.":" Your nuclear battery keeps going."),"ev")}}
     const g=solar?Math.round(7*(1-M.dust/100)*(M.storm>0?.15:1)*10)/10:5;
     M.power=Math.min(100,M.power+g-2);
     if(!solar&&M.storm>0)M.ev.nuke=1;
@@ -442,7 +482,7 @@ function finishMission(why){
   if(wk==="moon"&&!M.crewed&&S.stage===1&&WORLDS.moon.types.every(t=>store[t])){S.pending="site";adv="All four Moon sample types collected! Stage 1 complete."}
   if(M.crewed&&ok&&S.stage===2){S.pending="method";adv="Crewed sample return done! Stage 2 complete."}
   M.adv=adv;
-  S.sp+=pts;S.budget+=pts*2;checkUnlocks();grantIfBroke();save();go("debrief");
+  S.sp+=pts;S.budget+=fund(pts);checkUnlocks();grantIfBroke();save();go("debrief");
 }
 function renderDebrief(){
   const keys=Object.keys(M.ev).filter(k=>DEBRIEF[k]);
@@ -451,7 +491,7 @@ function renderDebrief(){
   const next=S.pending?'<button class="primary" onclick="go(\'choice\')">Continue to choice screen →</button>':'<button class="primary" onclick="go(\'hub\')">Back to Mission Control</button> <button onclick="startBrief(\''+M.wk+'\','+M.crewed+')">Try again with a new design</button>';
   return '<div class="card"><h2>'+(M.ok?"✅ Mission debrief":"📋 Mission debrief")+'</h2><p>'+esc(M.why)+'</p>'+
    '<p>Samples sent: <b>'+(M.sent.length?M.sent.map(esc).join(", "):"none")+'</b>'+(M.fresh.length?' (new: '+M.fresh.map(esc).join(", ")+')':'')+' · Instrument readings: '+M.instr+'</p>'+
-   '<p class="good"><b>+'+M.pts+' Science Points</b> (+$'+(M.pts*2)+'M funding)</p>'+(M.adv?'<p class="good"><b>🎉 '+M.adv+'</b></p>':'')+
+   '<p class="good"><b>+'+M.pts+' Science Points</b> (+$'+fund(M.pts)+'M funding)</p>'+(M.adv?'<p class="good"><b>🎉 '+M.adv+'</b></p>':'')+
    (M.ok?"":'<p class="muted">No game over: retry with a different design. A failed mission is how real engineers learn.</p>')+
    '<h3>What the real missions teach</h3>'+cards+
    (M.fresh.length?'<h3>New rock facts</h3>'+M.fresh.map(t=>'<div class="debrief"><b>'+esc(t)+'</b>: '+esc(SAMPLE_INFO[t])+'</div>').join(""):"")+
@@ -480,11 +520,11 @@ function pickMethod(p){if(p){S.budget-=12;S.printer=true}S.pending=null;S.stage=
 function renderLanding(){
   const site=SITES[S.site||"mare"],data=Object.keys(S.samples.moon).length;
   return '<div class="card"><div class="row spread"><h2>🛬 Landing practice: '+site.icon+' '+site.n+'</h2><button onclick="go(\'hub\')">← Back</button></div>'+
-   '<p class="muted small">Rover scouting gave you '+data+' sample types, which widens the safe pad by '+data*4+' px. Land gently on the flat pad: vertical speed under 3 m/s and sideways speed under 2 m/s. Controls: ↑/Space = main engine, ←/→ = side thrusters (or use the buttons).</p>'+
+   '<p class="muted small">Rover scouting gave you '+data+' sample types, which widens the safe pad by '+data*4+' px. Land gently on the flat pad: vertical speed under '+MD().vy+' m/s and sideways speed under 2 m/s. Controls: ↑/Space = main engine, ←/→ = side thrusters (or use the buttons).</p>'+
    '<canvas id="cv" width="700" height="420"></canvas>'+
    '<div class="row" style="margin-top:8px"><button id="bL">◀</button><button id="bU">▲ Thrust</button><button id="bR">▶</button><button class="primary" id="bGo" onclick="newLanding()">'+(S.budget<5?'Not enough budget':'Start landing ($5M)')+'</button></div>'+
    '<div id="res"></div>'+
-   barH("Reliability (crew launch needs 75%)",S.rel,100,S.rel>=75?'':'blue')+'</div>';
+   barH("Reliability (crew launch needs '+MD().rel+'%)",S.rel,100,S.rel>=75?'':'blue')+'</div>';
 }
 const KEY={};
 function onKey(e,d){const m={ArrowUp:"u",w:"u"," ":"u",ArrowLeft:"l",a:"l",ArrowRight:"r",d:"r"}[e.key];if(m){KEY[m]=d;if(V==="landing")e.preventDefault()}}
@@ -494,7 +534,7 @@ function initLanding(){
   const site=SITES[S.site||"mare"],data=Object.keys(S.samples.moon).length;
   const bind=(id,k)=>{const b=$("#"+id);["pointerdown"].forEach(ev=>b.addEventListener(ev,e=>{KEY[k]=true;e.preventDefault()}));["pointerup","pointerleave","pointercancel"].forEach(ev=>b.addEventListener(ev,()=>KEY[k]=false))};
   bind("bL","l");bind("bU","u");bind("bR","r");
-  LND={site,pw:site.pad+data*4,stop:false,state:"ready",c:$("#cv")};
+  LND={site,pw:Math.round((site.pad+data*4)*MD().pad),stop:false,state:"ready",c:$("#cv")};
   LND.pad=150+rnd()*400;
   const pts=[];for(let x=0;x<=700;x+=25){let y=355;const d=Math.abs(x-LND.pad);if(d>LND.pw/2+8)y=345+Math.sin(x*.07+LND.pad)*(site.id==="rim"?24:site.id==="high"?18:8)+rnd()*(site.id==="rim"?16:8);pts.push([x,y])}
   LND.terr=pts;
@@ -521,7 +561,7 @@ function newLanding(){
     if(L.y+12>=gy){me.state="done";
       const onPad=Math.abs(L.x-me.pad)<=me.pw/2-6,vy=L.vy/10,vx=Math.abs(L.vx)/10;
       if(!onPad)endLanding(false,"You touched down off the flat pad. Rocks and slopes can tip a lander over.");
-      else if(vy>3)endLanding(false,"Too fast! Touchdown at "+vy.toFixed(1)+" m/s broke a leg. Real landers must be slow and steady.");
+      else if(vy>MD().vy)endLanding(false,"Too fast! Touchdown at "+vy.toFixed(1)+" m/s broke a leg. Real landers must be slow and steady.");
       else if(vx>2)endLanding(false,"Too much sideways drift ("+vx.toFixed(1)+" m/s) tipped the lander.");
       else endLanding(true,"Soft touchdown at "+vy.toFixed(1)+" m/s with "+Math.round(L.fuel)+"% fuel left.");
       return}
@@ -543,9 +583,9 @@ function drawLanding(me){
 function endLanding(ok,msg){
   S.landings++;const before=S.rel;
   S.rel=ok?Math.min(100,S.rel+25):Math.max(0,S.rel-10);
-  if(ok)S.sp+=6,S.budget+=12;
+  if(ok)S.sp+=6,S.budget+=fund(6);
   grantIfBroke();save();chips();
-  $("#res").innerHTML='<div class="debrief"><b class="'+(ok?"good":"bad")+'">'+(ok?"Successful landing! Reliability "+before+"% → "+S.rel+"%":"Landing failed. Reliability "+before+"% → "+S.rel+"%")+'</b><br>'+esc(msg)+'<br>'+(S.rel>=75?'Reliability is proven. You can launch a crew from Mission Control.':'Real missions land many times before people ride along.')+'</div>';
+  $("#res").innerHTML='<div class="debrief"><b class="'+(ok?"good":"bad")+'">'+(ok?"Successful landing! Reliability "+before+"% → "+S.rel+"%":"Landing failed. Reliability "+before+"% → "+S.rel+"%")+'</b><br>'+esc(msg)+'<br>'+(S.rel>=MD().rel?'Reliability is proven. You can launch a crew from Mission Control.':'Real missions land many times before people ride along.')+'</div>';
   const b=$("#bGo");if(b)b.textContent=S.budget<5?"Not enough budget":"Try again ($5M)";
 }
 
@@ -589,11 +629,11 @@ function oEval(){
   return MODS.map(m=>{const d=OD.mods[m.id],mt=MATS[d.mat],ins=INS[d.ins];
     let str=mt.s+(d.reg?1:0),sh=mt.sh+(d.reg?3:0),th=ins.t;
     if(m.press&&(d.mat==="carbon"||d.mat==="honey"))str-=d.mat==="carbon"?3:0;
-    const needStr=m.str+site.strength,needTh=m.therm?m.therm+site.thermal:0,probs=[];
+    const needStr=Math.max(1,m.str+site.strength+MD().need),needTh=m.therm?Math.max(0,m.therm+site.thermal+MD().need):0,needSh=m.shield?Math.max(0,m.shield+MD().need):0,probs=[];
     if(str<needStr)probs.push("Structure too weak ("+str+" vs "+needStr+" needed): stress and micrometeorite hits cracked it"+(m.press?" and pressure was lost":"")+".");
     if(th<needTh)probs.push("Insulation too thin ("+th+" vs "+needTh+" needed): temperature swings froze or cooked it.");
-    if(sh<m.shield)probs.push("Radiation shielding too low ("+sh+" vs "+m.shield+" needed): add steel or a regolith cover.");
-    return {m,ok:!probs.length,probs,str,th,sh,needStr,needTh};
+    if(sh<needSh)probs.push("Radiation shielding too low ("+sh+" vs "+needSh+" needed): add steel or a regolith cover.");
+    return {m,ok:!probs.length,probs,str,th,sh,needStr,needTh,needSh};
   });
 }
 function renderOutpost(){
@@ -603,7 +643,7 @@ function renderOutpost(){
    '<label class="small">Structure <select onchange="OD.mods[\''+m.id+'\'].mat=this.value;OD.tested=0;render()">'+Object.keys(MATS).map(k=>'<option value="'+k+'" '+(d.mat===k?'selected':'')+'>'+MATS[k].n+'</option>').join("")+'</select></label>'+
    '<label class="small">Insulation <select onchange="OD.mods[\''+m.id+'\'].ins=this.value;OD.tested=0;render()">'+Object.keys(INS).map(k=>'<option value="'+k+'" '+(d.ins===k?'selected':'')+'>'+INS[k].n+'</option>').join("")+'</select></label>'+
    '<label class="small"><input type="checkbox" '+(d.reg?'checked':'')+' onchange="OD.mods[\''+m.id+'\'].reg=this.checked;OD.tested=0;render()"> 🖨️ Regolith cover</label></div>'+
-   '<p class="small muted">'+esc(MATS[d.mat].ctx)+(S.junior?' · Needs: strength '+e.needStr+', thermal '+e.needTh+(m.shield?', shield '+m.shield:'')+' · You have: strength '+e.str+', thermal '+e.th+', shield '+e.sh:'')+'</p>'+
+   '<p class="small muted">'+esc(MATS[d.mat].ctx)+(MD().hints?' · Needs: strength '+e.needStr+', thermal '+e.needTh+(e.needSh?', shield '+e.needSh:'')+' · You have: strength '+e.str+', thermal '+e.th+', shield '+e.sh:'')+'</p>'+
    (ev?'<p class="small '+(ev[i].ok?'good':'bad')+'">'+(ev[i].ok?'✅ Stayed working through the stress test.':'❌ '+esc(ev[i].probs.join(" ")))+'</p>':'')+'</div>'}).join("");
   return '<div class="card"><div class="row spread"><h2>🏗️ Outpost at '+site.icon+' '+site.n+'</h2><button onclick="go(\'hub\')">← Back</button></div>'+
    '<p class="muted">Choose materials for each module. Ships carry 30 kg each, and every shipment costs $18M. The win condition is an outpost whose systems <b>keep working</b>, not the biggest one.</p>'+
@@ -616,11 +656,12 @@ function renderOutpost(){
 function buildOutpost(){
   const t=oCalc();S.budget-=t.cost;if(t.printer)S.printer=true;
   const res=oEval();OD.res=res;OD.tested=1;OD.win=res.every(r=>r.ok);
-  if(OD.win){S.stage=4;const pts=30+Math.max(0,Math.round(60-t.mass));S.sp+=pts;S.budget+=pts*2;toast("Outpost built! +"+pts+" Science Points");OD.refund=0}
+  if(OD.win){S.stage=4;const pts=30+Math.max(0,Math.round(60-t.mass));S.sp+=pts;S.budget+=fund(pts);toast("Outpost built! +"+pts+" Science Points");OD.refund=0}
   else{OD.refund=Math.round(t.cost*.6);S.budget+=OD.refund}
   checkUnlocks();grantIfBroke();save();chips();render();
 }
 
+if(!S.mode)V="modes";
 render();
 </script>
 </body>
