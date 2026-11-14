@@ -28,3 +28,10 @@ Open `outpost-7.html` in any browser. Six lunar outposts were lost within their 
 - **The Six Lost Outposts:** each failed crew has a named story with crew, logs and a real NASA lesson. Find the wrecks to read them in the Archive.
 - **Win:** survive all 30 days, collect the required rock samples (4 to 6 by mode) and load them into the return capsule. A finish-mission sequence plays.
 - Modes: Cadet, Junior, Commander, Veteran and Free Play (no failure).
+
+## Visuals
+- Animated event banners by type (radiation, equipment, medical, environment, supply, psychological).
+- Base scene with a sun that crosses the sky through the day and an astronaut beside the habitat.
+- Clickable scaled map in the Explore tab, with 1, 2 and 3 km rings.
+- Live habitat systems schematic in the Base tab (tanks, battery, heart monitor, morale, radiation dial).
+- Rock sample illustrations, module previews in the build planner, Moon and Mars discs, and a diagram for each training lesson.
