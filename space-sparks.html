@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Space Sparks – Junior Astronaut Mission Trainer</title>
+<style>
+:root{--bg:#070b1f;--panel:#111a3d;--panel2:#1a2656;--text:#eaf0ff;--muted:#9aa8d8;--accent:#ffb347;--good:#4ade80;--bad:#f87171;--blue:#60a5fa;--line:#2b3a78}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at top,#16215a 0,#070b1f 60%) fixed;color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(7,11,31,.85);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header h1{margin:0;font-size:1.15rem;letter-spacing:.5px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 12px;font-size:.85rem}
+main{max-width:1000px;margin:0 auto;padding:16px}
+h2{margin:.2em 0 .4em}h3{margin:.2em 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:12px 0}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+button{font:inherit;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:var(--accent);color:#1b1200;border-color:var(--accent);font-weight:700}
+button.sm{padding:4px 10px;font-size:.85rem}
+.muted{color:var(--muted)}.small{font-size:.85rem}
+.good{color:var(--good)}.bad{color:var(--bad)}
+.opt{display:block;text-align:left;width:100%;margin:6px 0}
+.opt.sel{border-color:var(--accent);background:#2a2f63}
+.opt .ctx{display:block;color:var(--muted);font-size:.85rem}
+.bar{height:12px;background:#0a1030;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.bar>i{display:block;height:100%;background:var(--good);transition:width .3s}
+.bar.warn>i{background:var(--accent)}.bar.danger>i{background:var(--bad)}.bar.blue>i{background:var(--blue)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.spread{justify-content:space-between}
+.stages{display:flex;gap:8px;margin:6px 0}
+.stages div{flex:1;text-align:center;padding:6px;border-radius:8px;border:1px solid var(--line);font-size:.85rem;color:var(--muted)}
+.stages .on{border-color:var(--accent);color:var(--text);background:#2a2f63}.stages .done{color:var(--good);border-color:var(--good)}
+.map{position:relative;height:90px;margin:14px 6px 24px;border-bottom:3px dashed var(--line)}
+.map .pt{position:absolute;bottom:-4px;transform:translateX(-50%);text-align:center;font-size:.75rem}
+.map .pt span{display:block;font-size:1.4rem}
+.map .rv{position:absolute;bottom:22px;transform:translateX(-50%);font-size:1.8rem;transition:left .5s}
+.log{max-height:170px;overflow:auto;background:#0a1030;border-radius:10px;padding:8px 12px;font-size:.9rem}
+.log p{margin:2px 0}.log .ev{color:var(--accent)}.log .er{color:var(--bad)}.log .ok{color:var(--good)}
+.debrief{border-left:4px solid var(--accent);background:#0f1740;padding:10px 14px;border-radius:0 10px 10px 0;margin:8px 0}
+canvas{width:100%;max-width:700px;background:#02040f;border:1px solid var(--line);border-radius:10px;display:block;touch-action:none}
+select{font:inherit;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:4px}
+.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--accent);color:#1b1200;font-weight:700;padding:8px 18px;border-radius:999px;z-index:9;box-shadow:0 4px 20px #0008}
+.tag{display:inline-block;font-size:.72rem;border:1px solid var(--line);border-radius:6px;padding:0 6px;margin-right:4px;color:var(--muted)}
+table{width:100%;border-collapse:collapse}td,th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left;font-size:.9rem}
+@media(max-width:600px){main{padding:10px}.stages div{font-size:.7rem}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚀 Space Sparks <span class="muted small">Junior Astronaut Mission Trainer</span></h1>
+  <div class="chips" id="chips"></div>
+</header>
+<main id="app"></main>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ============ DATA ============ */
+const SAVE_KEY = "spaceSparksV1";
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const rnd = () => Math.random();
+
+const ROVERS = {
+  mapp:{n:"MAPP",icon:"🛻",mass:9,cost:12,drive:1.0,unlock:0,role:"Commercial rover from Lunar Outpost, landed near the south pole in March 2025.",use:"Low-cost commercial option"},
+  yutu:{n:"Yutu-2",icon:"🚙",mass:12,cost:22,drive:0.9,unlock:20,role:"China's rover on the Moon's far side since January 2019.",use:"Far-side scouting design"},
+  viper:{n:"VIPER",icon:"🧊",mass:16,cost:35,drive:1.2,unlock:50,role:"NASA ice-hunting robot; mission cancelled in 2024.",use:"Ice and water scouting design (instrument readings worth extra)"},
+  lrv:{n:"Apollo Lunar Roving Vehicle",icon:"🏎️",mass:0,cost:0,drive:0.5,unlock:-1,role:"Electric car driven by crew on Apollo 15, 16 and 17; about 13 km/h.",use:"Crewed fast rover, unlocked in Stage 2"},
+  pragyan:{n:"Pragyan",icon:"🇮🇳",mass:0,cost:0,drive:0,unlock:-2,role:"India's rover near the south pole, landed August 2023, now dormant.",use:"Case study: a rover that stops working when its solar power and heat run out after the lunar day"},
+  ltv:{n:"Artemis LTV",icon:"🌘",mass:0,cost:0,drive:0,unlock:-2,role:"Rover for Artemis astronauts that can also drive itself uncrewed.",use:"Late-game crew plus autonomous rover (coming in a future update)"}
+};
+
+const DEC = {
+  power:{title:"Rover power",opts:[
+    {id:"solar",label:"☀️ Solar panels",mass:0,cost:0,ctx:"Cheap, but dust covers panels and storms cut output. Opportunity ended this way."},
+    {id:"nuclear",label:"☢️ Nuclear battery (about 110 W)",mass:6,cost:20,ctx:"Always works day, night and in storms (Curiosity, Perseverance). Costs more to bring."}]},
+  wheels:{title:"Wheel design",opts:[
+    {id:"alu",label:"Light aluminum wheels",mass:0,cost:0,ctx:"Light, but sharp rocks can punch holes in them, as on Curiosity."},
+    {id:"tough",label:"Tougher wheels",mass:3,cost:6,ctx:"Heavier and costlier but they shrug off most rock damage."}]},
+  tools:{title:"Rover tools",opts:[
+    {id:"basic",label:"📷 Camera and drill only",mass:0,cost:0,ctx:"Light and low Power use. Collects samples but no extra science."},
+    {id:"full",label:"🔬 Add laser, weather station, radiation detector",mass:4,cost:8,ctx:"Every tool uses Power and weight, but unlocks science instrument readings."}]},
+  dust:{title:"Dust protection (solar only)",opts:[
+    {id:"none",label:"No dust protection",mass:0,cost:0,ctx:"Wind may clear panels sometimes. Maybe."},
+    {id:"shield",label:"⚡ Electrostatic dust-clearing upgrade",mass:1,cost:5,ctx:"Repels dust from the panels on command."}]},
+  bat:{title:"Crew battery pack",opts:[
+    {id:"std",label:"Standard battery",mass:0,cost:0,ctx:"The LRV ran on non-rechargeable batteries on the Moon."},
+    {id:"ext",label:"Extended battery (+4 steps)",mass:0,cost:8,ctx:"More driving time, but more cost."}]}
+};
+
+const WORLDS = {
+  moon:{n:"Moon",icon:"🌙",queue:1,steps:14,storm:0.10,rock:1,delay:"Near real time (about 1.3 seconds each way).",
+    types:["anorthosite","basalt","breccia","regolith"],
+    sites:[
+      {id:"mare",n:"Mare plains",icon:"🟫",pos:1,rocky:.10,sample:"basalt"},
+      {id:"flat",n:"Dusty flats",icon:"🏜️",pos:2,rocky:.05,sample:"regolith"},
+      {id:"high",n:"Highlands",icon:"⛰️",pos:3.5,rocky:.18,sample:"anorthosite"},
+      {id:"rim",n:"Crater rim",icon:"🌑",pos:5,rocky:.35,sample:"breccia"}]},
+  mars:{n:"Mars",icon:"🔴",queue:3,steps:18,storm:0.16,rock:1.6,delay:"Orders arrive 1 sol late, so you queue 3 commands and the rover runs them by itself.",
+    types:["volcanic basalt","sedimentary rock","meteorite","clay mudstone"],
+    sites:[
+      {id:"plain",n:"Lava plain",icon:"🟥",pos:1,rocky:.15,sample:"volcanic basalt"},
+      {id:"delta",n:"Ancient river delta",icon:"🏞️",pos:3,rocky:.22,sample:"sedimentary rock"},
+      {id:"field",n:"Iron meteorite field",icon:"☄️",pos:4,rocky:.35,sample:"meteorite"},
+      {id:"clay",n:"Clay hills",icon:"⛰️",pos:5.5,rocky:.30,sample:"clay mudstone"}]}
+};
+const SAMPLE_INFO = {
+  anorthosite:"Pale, light rock from the Moon's old crust. It tells us the Moon once had a magma ocean.",
+  basalt:"Dark volcanic rock from the maria. It shows lava flowed on the Moon billions of years ago.",
+  breccia:"Rock made of broken fragments fused by impacts. It records the Moon's bombardment history.",
+  regolith:"Loose, sharp lunar soil. It can be used for bricks, shields and oxygen.",
+  "volcanic basalt":"Mars is mostly volcanic basalt, evidence of a volcanic past.",
+  "sedimentary rock":"Rock laid down by water. A sign that Mars once had rivers and lakes.",
+  meteorite:"Rock from space. It is easy to spot on the surface and shows what space rocks are made of.",
+  "clay mudstone":"Clay forms when rock meets water, a great place to look for past life."
+};
+
+const SITES = {
+  high:{n:"Highlands",icon:"⛰️",pad:78,need:"anorthosite",why:"Anorthosite shows old, solid crust: a stable place to build.",thermal:0,strength:0,ice:false,
+    note:"Solid crust, moderate boulders."},
+  mare:{n:"Mare plains",icon:"🟫",pad:115,need:"basalt",why:"Basalt means flat lava plains: easy to land on.",thermal:1,strength:0,ice:false,
+    note:"Flat and easy to land on, but day and night temperature swings are extreme (+1 thermal need)."},
+  rim:{n:"Shadowed crater rim",icon:"🌑",pad:58,need:"breccia",why:"Breccia means impact zone. Shadowed craters can hold ice.",thermal:0,strength:1,ice:true,
+    note:"Narrow, tricky landing and shaking ground (+1 strength need), but ice nearby halves the water tank cost."}
+};
+
+/* name, complexity(1-3), price($M), value(1-3), stage, fact */
+const ACT = [
+ ["Watch the sky (sunset or Earth)",1,0,1,1,"From the Moon's near side Earth hangs in nearly the same spot forever because the Moon is tidally locked."],
+ ["Brush dust off solar panels",1,0,2,1,"Dust on Opportunity's panels cut its power until a storm ended the mission. Brushing keeps energy flowing."],
+ ["Picture studied in rocket",1,0,1,1,"Orbiter photos show craters; shadows are used to work out how deep they are."],
+ ["Stargaze through the rocket telescope",1,2,1,1,"With no air, stars do not twinkle on the Moon. They look steady and sharp."],
+ ["Exercise to protect bones and muscles",1,0,2,1,"Astronauts exercise about 2 hours a day. Low gravity makes bones lose density."],
+ ["Read your radiation badge",1,1,2,1,"There is no thick air or magnetic field on the Moon, so radiation is higher than on Earth."],
+ ["Measure plant growth",2,4,2,1,"Plants help recycle air and could become fresh food on long missions."],
+ ["Check the reactor heat output",2,3,2,1,"Nuclear batteries turn heat into electricity. Curiosity's makes about 110 W, like a light bulb."],
+ ["Measure the ground temperature",1,1,2,1,"The lunar surface swings from about 120 °C in daylight to about -170 °C at night."],
+ ["Analyze meteorite",2,4,3,1,"Meteorites are pieces of asteroids and planets. They show what the early solar system was made of."],
+ ["Photograph moons or Earth in the sky",1,1,1,1,"Mars has two tiny moons, Phobos and Deimos. Earth's phases look like the Moon's phases."],
+ ["Radio a school on Earth",1,0,2,1,"Radio takes about 1.3 seconds to reach the Moon, but 3 to 22 minutes to reach Mars."],
+ ["Scan rocks with a spectrometer",2,5,3,1,"Spectrometers read the light 'fingerprint' of minerals. ChemCam even zaps rocks with a laser."],
+ ["Measure an impact crater",2,2,2,1,"Crater size and shape tell scientists how big the impact was and how old the surface is."],
+ ["Measure moving sand dunes",2,2,2,1,"Mars has wind-blown dunes that move by metres every year."],
+ ["Dirt sample",1,1,2,1,"Lunar regolith is sharp, glassy dust because there is no wind or water to smooth it."],
+ ["Work on dirt sample in rocket",2,3,2,1,"Heating regolith can release oxygen, which could one day make air and fuel."],
+ ["Grow food and vegetation on the rocket",2,5,3,1,"Salad grown on the ISS has been eaten by astronauts. Fresh food helps morale and nutrition."],
+ ["Find meteorite",2,3,3,1,"Dark meteorites stand out on pale lunar soil and on Mars's plains."],
+ ["Map buried ice with ground radar",3,10,3,1,"Ground radar sends waves underground. Ice buried at the poles could become water and rocket fuel."],
+ ["Sieve sand from the riverbed",2,2,2,1,"Grain shapes show whether water ever moved the sand. Round grains mean flowing water."],
+ ["Measure how much your shield blocks",2,3,3,1,"Thick regolith or water walls block radiation and tiny meteoroids."],
+ ["Set up a science instrument",2,4,2,1,"Instruments left behind keep sending data after the crew goes home."],
+ ["Study a rolling-boulder track",2,2,2,1,"Boulder tracks on slopes show that moonquakes and impacts shake the ground."],
+ ["Weather and radiation log",1,1,2,1,"Logging data every day shows patterns, such as solar storms, that warn crews."],
+ ["Health check: compare astronaut body vs Earth standard",2,2,2,1,"Medics compare heart rate, bone density and weight with Earth baselines."],
+ ["Map the rock layers",3,6,3,2,"Layers are like pages of a history book. The deeper the layer, the older the story."],
+ ["Set up a seismometer",3,8,3,2,"Apollo seismometers heard moonquakes. The Moon 'rang like a bell' for over an hour."],
+ ["Test clay minerals",2,3,2,2,"Clay minerals form when rock and water meet, so they are clues to wet pasts."],
+ ["Collect volcanic glass beads",2,3,3,2,"Apollo 17 found orange glass beads from lava fountains about 3.6 billion years ago."],
+ ["Drill a deep rock core",3,10,3,2,"Drill cores keep rock layers in order, so scientists can read their history."],
+ ["Climb down a crater cliff",3,6,3,2,"Rope and tether teams are trained for steep slopes. Safety comes first."],
+ ["Pack a sample tube for return to Earth",2,4,3,2,"Perseverance seals rock cores in tubes to be returned to Earth labs."],
+ ["Make oxygen from local resources",3,12,3,2,"Perseverance's MOXIE made oxygen from Mars air. Moon rocks are about 40% oxygen by mass."],
+ ["Relay data through an orbiter",2,3,2,2,"Orbiters act as radio relays so the surface can talk to Earth more often."],
+ ["Launch a weather balloon",2,4,2,2,"Balloons measure temperature and pressure at different heights."],
+ ["Run a heart and sleep study",2,2,2,2,"Sleep and heart rhythms change in space, which helps doctors plan long trips."],
+ ["Track the Sun with a solar telescope",2,5,2,2,"Solar flares can be dangerous. Telescopes help give warnings."],
+ ["Send data back to Earth",1,0,2,1,"Data is sent in packets; a good link may take minutes to send a picture from Mars."],
+ ["Space walk discoveries",3,8,3,2,"Apollo crews found new rock types on EVAs that robots had missed."],
+ ["Find water",3,10,3,2,"Ice in permanently shadowed craters could supply drinking water, air and fuel."],
+ ["Grow vegetation in Martian or lunar soil",3,6,3,3,"Scientists have grown plants in soil made like lunar and Martian regolith, with nutrients added."],
+ ["Discover evidence of past life",3,15,3,3,"No life has been found yet, but Perseverance is collecting rock cores that might hold signs."],
+ ["Try activities on the Moon or Mars",2,0,1,3,"On the Moon gravity is one sixth of Earth's, so a jump looks like slow motion."],
+ ["Explore a lava tube cave",3,12,3,3,"Lava tubes could shelter bases from radiation and temperature swings."],
+ ["Probe a permanently shadowed crater",3,12,3,3,"Some craters have not seen sunlight for billions of years, at about -240 °C."]
+];
+const actPts = a => a[1]*a[3]*2 + Math.round(a[2]/5);
+const actEnergy = a => a[1];
+
+const QUIZ = [
+ {q:"Why did NASA's Opportunity rover stop working in 2018?",a:["A giant dust storm blocked sunlight to its solar panels","Its wheels fell off","It ran out of fuel","It fell into a crater"],c:0,e:"Dust storm. Solar rovers lose power when dust blocks sunlight.",g:1,v:5},
+ {q:"What kind of power does Curiosity use?",a:["Solar panels","A nuclear battery","Gasoline","Wind"],c:1,e:"A nuclear battery (about 110 W) gives steady power day and night.",g:1,v:5},
+ {q:"Why must Mars rovers drive themselves between commands?",a:["They are lazy","Radio signals take minutes to travel, so orders arrive late","The Sun blocks signals","Rovers cannot be controlled"],c:1,e:"Distance creates delay. Rovers follow queued commands and use autonomous driving.",g:2,v:5},
+ {q:"Which rock is made of fragments fused together by meteorite impacts?",a:["Basalt","Anorthosite","Breccia","Ice"],c:2,e:"Breccia is made of broken pieces welded together by impacts.",g:3,v:5},
+ {q:"Which rock formed from cooled lava on the Moon's dark plains?",a:["Basalt","Anorthosite","Granite","Sandstone"],c:0,e:"Basalt is volcanic rock. The dark plains (maria) are old lava flows.",g:3,v:5},
+ {q:"Why are spacecraft built from light and strong materials?",a:["It looks cool","Every extra kilogram costs lots of money to launch","Heavy things float","Light materials are always cheaper"],c:1,e:"Launch cost depends heavily on weight, so engineers want strength without weight.",g:4,v:5},
+ {q:"What do Kapton and Mylar blankets do on spacecraft?",a:["Make oxygen","Reflect sunlight and trap heat","Store water","Block radio"],c:1,e:"They are thin layers that reflect sunlight and hold heat in, helping with temperature swings.",g:4,v:5},
+ {q:"Why could building with local regolith cut launch weight?",a:["Regolith is lighter than air","Bricks and shields can be made on the Moon instead of shipped from Earth","It needs no machines","It is magnetic"],c:1,e:"Using local material means less mass launched from Earth. You still need a printer and time.",g:5,v:8},
+ {q:"Which Apollo vehicle carried astronauts at about 13 km/h on the Moon?",a:["Lunar Roving Vehicle","Space shuttle","Hubble","Sojourner"],c:0,e:"The LRV was an electric car used on Apollo 15, 16 and 17.",g:1,v:5},
+ {q:"Why does a rover with aluminum wheels worry about sharp rocks?",a:["Rocks are magnetic","Sharp rocks can punch holes in thin wheels, as seen on Curiosity","Rocks are hot","Wheels melt"],c:1,e:"Curiosity's wheels got dents and holes, so later rovers use tougher designs.",g:1,v:5},
+ {q:"How fast is a typical Mars rover?",a:["About 100 km/h","About 13 km/h","About 0.1 km/h","Speed of light"],c:2,e:"Mars rovers are very slow, around 0.1 km/h, so planning routes matters.",g:2,v:5},
+ {q:"Why is the Moon a good tutorial world before Mars?",a:["Same systems but shorter delay","It has air","It has no gravity","It has no rocks"],c:0,e:"The Moon has almost no delay, so the same lessons come with less difficulty.",g:2,v:5},
+ {q:"Which hazard is the main landing problem for a crewed Moon lander?",a:["Fish","Dust kicked up by engines and rough terrain","Rain","Wind"],c:1,e:"Landing engines throw dust, and rocks or slopes can tip a lander.",g:1,v:8},
+ {q:"What might be found in permanently shadowed craters near the Moon's poles?",a:["Water ice","Rainforests","Gold bricks","Oceans"],c:0,e:"Cold traps can preserve water ice, useful for drinking and rocket fuel.",g:5,v:8},
+ {q:"Why do astronauts exercise about 2 hours a day in space?",a:["For fun only","To protect bones and muscles in low gravity","To warm up","To make power"],c:1,e:"Low gravity makes bones and muscles weaker unless they are used.",g:1,v:5},
+ {q:"Why is a reliability meter used before sending a crew?",a:["To count money","Because a system must be proven by repeated safe landings first","To pick astronauts","To track fuel"],c:1,e:"Real missions test landers many times uncrewed before risking people.",g:2,v:5}
+];
+
+const DEBRIEF = {
+  dust:["Opportunity (Mars)","Dust storms block sunlight and dust settles on solar panels. Opportunity went silent in 2018 after a global dust storm. Solar is cheap but fragile; nuclear power or a dust-clearing upgrade helps."],
+  wheel:["Curiosity (Mars)","Sharp rocks punched holes in Curiosity's thin aluminum wheels. Tougher, heavier wheels cost more but last longer."],
+  stuck:["Spirit (Mars)","Spirit got stuck in soft sand in 2009. A rover that cannot drive can still study what is around it, but it cannot reach new sites."],
+  dead:["Pragyan and Opportunity","A rover with no power goes silent. Pragyan went dormant after the lunar night, and Opportunity after the dust storm. Power planning is the heart of rover missions."],
+  nuke:["Perseverance and Curiosity","Their nuclear batteries (about 110 W) keep running through dust storms and nights. Reliability costs mass and money."],
+  delay:["Mars rovers","Because orders arrive one sol late, operators queue a full day of commands. Autonomous driving lets rovers avoid hazards in between."],
+  lostdata:["Data is only science once it is sent","A rover that dies before transmitting loses its findings. Teams send data early and often."],
+  tools:["Curiosity's ChemCam","Every tool uses weight and Power. Curiosity's laser, weather station and radiation detector add science but need energy."],
+  weight:["Launch costs","Heavier ships cost more to launch, so every instrument competes for limited weight."],
+  lrv:["Apollo 15, 16 and 17","The LRV let astronauts explore much farther than walking. It was electric, with non-rechargeable batteries, so every kilometre counted."]
+};
+
+/* ============ STATE ============ */
+function fresh(){return {budget:220,sp:0,stage:1,samples:{moon:{},mars:{}},site:null,rel:0,landings:0,astro:null,printer:false,
+  rovers:{mapp:1},junior:true,done:{},energy:6,day:1,quiz:0,pending:null,flags:{},missions:0,outpost:null}}
+let S = (function(){try{const t=localStorage.getItem(SAVE_KEY);if(t){const o=JSON.parse(t);return Object.assign(fresh(),o)}}catch(e){}return fresh()})();
+function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(S))}catch(e){}}
+let V = "hub", M = null, Q = null, LND = null, OD = null, brief = null;
+
+function toast(msg){const t=$("#toast");t.innerHTML='<div class="toast">'+esc(msg)+'</div>';clearTimeout(toast.t);toast.t=setTimeout(()=>t.innerHTML="",2800)}
+function award(pts,why){S.sp+=pts;const f=pts*2;S.budget+=f;toast("+"+pts+" Science Points ("+why+") · +$"+f+"M funding");checkUnlocks();save()}
+function checkUnlocks(){for(const k in ROVERS){const r=ROVERS[k];if(r.unlock>0&&S.sp>=r.unlock&&!S.rovers[k]){S.rovers[k]=1;toast("Unlocked rover: "+r.n)}}}
+function grantIfBroke(){if(S.budget<40){S.budget+=60;toast("Mission Control approves a $60M recovery grant. Try a different design!")}}
+function go(v){V=v;render();window.scrollTo(0,0)}
+
+/* ============ RENDER ============ */
+function chips(){
+  $("#chips").innerHTML=
+   '<span class="chip">⭐ '+S.sp+' SP</span><span class="chip">💰 $'+Math.round(S.budget)+'M</span>'+
+   (S.astro?'<span class="chip">'+S.astro.icon+' '+esc(S.astro.name)+'</span>':'')+
+   '<span class="chip">Reliability '+S.rel+'%</span>';
+}
+function render(){chips();stopLanding();
+  const f={hub,brief:renderBrief,mission:renderMission,debrief:renderDebrief,lab,quiz:renderQuiz,codex,landing:renderLanding,crew,choice,outpost:renderOutpost}[V];
+  $("#app").innerHTML=f();if(V==="landing")initLanding();
+}
+function stageBar(){
+  const st=S.stage,n=["1 · Scout (rovers)","2 · Land (humans)","3 · Build (outpost)"];
+  return '<div class="stages">'+n.map((x,i)=>'<div class="'+((st>i+1)?'done':(st===i+1?'on':''))+'">'+(st>i+1?"✓ ":"")+x+'</div>').join("")+'</div>';
+}
+function barH(label,v,max,cls){const p=Math.max(0,Math.min(100,v/max*100));return '<div class="small">'+label+' '+Math.round(v)+'</div><div class="bar '+(cls||(p<25?'danger':p<50?'warn':''))+'"><i style="width:'+p+'%"></i></div>'}
+
+function hub(){
+  const st=S.stage;
+  let mission="";
+  if(S.pending==="site")mission='<button class="primary" onclick="go(\'choice\')">Stage 1 complete: choose your outpost site →</button>';
+  else if(S.pending==="method")mission='<button class="primary" onclick="go(\'choice\')">Stage 2 complete: choose your building method →</button>';
+  else if(st===1)mission='<button class="primary" onclick="startBrief(\'moon\')">🛻 Plan a Moon rover mission</button>';
+  else if(st===2)mission='<button class="primary" onclick="go(\'landing\')">🛬 Landing practice ($5M)</button> <button class="primary" onclick="go(\'crew\')" '+(S.rel<75?'disabled':'')+'>👩‍🚀 Launch crew ('+(S.rel<75?'needs 75% reliability':'ready')+')</button>';
+  else if(st===3)mission='<button class="primary" onclick="startOutpost()">🏗️ Plan the outpost</button>';
+  else mission='<button class="primary" onclick="startBrief(\'mars\')">🔴 Mars training (bonus world)</button>';
+  const moon=Object.keys(S.samples.moon),mars=Object.keys(S.samples.mars);
+  return '<div class="card"><h2>Mission Control</h2>'+stageBar()+
+   '<p class="muted">'+({1:"Scout the Moon with rovers. Collect and send back all 4 Moon sample types to unlock human landings.",
+     2:"Prove a reliable landing system until your reliability reaches 75%, then launch a crew with the Apollo-style rover.",
+     3:"Build a working outpost. Pick materials that trade weight, strength and cost, then survive a stress test.",
+     4:"Moon outpost working! Try the harder Mars world with a 1-sol command delay."})[st>3?4:st]+'</p>'+
+   '<div class="row">'+mission+'</div></div>'+
+   '<div class="grid">'+
+   '<div class="card"><h3>🧪 Samples</h3><p class="small">Moon: '+(moon.length?moon.map(esc).join(", "):"none yet")+' ('+moon.length+'/4)</p>'+(mars.length?'<p class="small">Mars: '+mars.map(esc).join(", ")+' ('+mars.length+'/4)</p>':"")+'</div>'+
+   '<div class="card"><h3>⭐ Earn Science Points</h3><div class="row">'+(S.junior?'<button onclick="go(\'lab\')">🧑‍🚀 Survival Lab</button>':'')+'<button onclick="startQuiz()">❓ Quiz</button></div><p class="small muted">Points depend on complexity, price and value of the task. Each point also brings in funding.</p></div>'+
+   '<div class="card"><h3>📖 Rover catalog</h3><button onclick="go(\'codex\')">Open catalog</button></div>'+
+   '<div class="card"><h3>⚙️ Simulation</h3><label class="small"><input type="checkbox" '+(S.junior?'checked':'')+' onchange="S.junior=this.checked;save();render()"> Junior mode (Survival Lab and hints)</label><br><button class="sm" style="margin-top:8px" onclick="if(confirm(\'Start a new simulation? Progress will be lost.\')){S=fresh();save();go(\'hub\')}">🔄 New simulation</button></div>'+
+   '</div>';
+}
+
+/* ============ SURVIVAL LAB ============ */
+function lab(){
+  const rows=ACT.map((a,i)=>{
+    const done=S.done[i],locked=a[4]>S.stage&&S.stage<4?(a[4]>S.stage):false;
+    const dis=done||locked||S.energy<actEnergy(a)||S.budget<a[2];
+    return '<div class="card" style="margin:6px 0;opacity:'+(done?.55:1)+'"><div class="row spread"><div><b>'+esc(a[0])+'</b><br><span class="tag">complexity '+a[1]+'</span><span class="tag">$'+a[2]+'M</span><span class="tag">value '+a[3]+'</span><span class="tag">⚡'+actEnergy(a)+'</span><span class="tag good">+'+actPts(a)+' SP</span>'+(locked?'<span class="tag">unlocks Stage '+a[4]+'</span>':'')+'</div>'+
+     '<button '+(dis?'disabled':'')+' onclick="doAct('+i+')">'+(done?'✓ Done':'Do it')+'</button></div>'+(done?'<p class="small muted">'+esc(a[5])+'</p>':'')+'</div>';
+  }).join("");
+  return '<div class="card"><div class="row spread"><h2>🧑‍🚀 Survival Lab (Day '+S.day+')</h2><button onclick="go(\'hub\')">← Back</button></div>'+
+    '<p class="muted">Junior astronaut chores keep you alive and teach real science. Energy left today: <b>'+S.energy+'/6</b>.</p><button onclick="S.energy=6;S.day++;save();render()">😴 Sleep (new day)</button></div>'+rows;
+}
+function doAct(i){const a=ACT[i];S.energy-=actEnergy(a);S.budget-=a[2];S.done[i]=1;toast("Learned: "+a[5]);setTimeout(()=>{award(actPts(a),a[0]);render()},50);save();render()}
+
+/* ============ QUIZ ============ */
+function startQuiz(){Q={qs:[...QUIZ].sort(()=>rnd()-.5).slice(0,5),i:0,right:0,picked:null,pts:0};go("quiz")}
+function renderQuiz(){
+  if(Q.i>=Q.qs.length)return '<div class="card"><h2>Quiz complete!</h2><p>You got <b>'+Q.right+'/'+Q.qs.length+'</b> and earned <b>'+Q.pts+' SP</b>.</p><div class="row"><button class="primary" onclick="startQuiz()">Again</button><button onclick="go(\'hub\')">Back</button></div></div>';
+  const q=Q.qs[Q.i];
+  return '<div class="card"><div class="row spread"><h2>❓ Quiz '+(Q.i+1)+'/'+Q.qs.length+'</h2><button class="sm" onclick="go(\'hub\')">Exit</button></div><p><b>'+esc(q.q)+'</b></p>'+
+   q.a.map((x,j)=>'<button class="opt '+(Q.picked!==null?(j===q.c?'sel':''):'')+'" '+(Q.picked!==null?'disabled':'')+' onclick="answerQ('+j+')">'+esc(x)+'</button>').join("")+
+   (Q.picked!==null?'<div class="debrief">'+(Q.picked===q.c?'<b class="good">Correct! +'+q.v+' SP</b>':'<b class="bad">Not quite.</b>')+' '+esc(q.e)+'</div><button class="primary" onclick="Q.i++;Q.picked=null;render()">Next →</button>':'')+'</div>';
+}
+function answerQ(j){const q=Q.qs[Q.i];Q.picked=j;if(j===q.c){Q.right++;Q.pts+=q.v;S.sp+=q.v;S.budget+=q.v*2;checkUnlocks();save()}render()}
+
+/* ============ CATALOG ============ */
+function codex(){
+  return '<div class="card"><div class="row spread"><h2>📖 Rover catalog</h2><button onclick="go(\'hub\')">← Back</button></div><div class="grid">'+
+   Object.keys(ROVERS).map(k=>{const r=ROVERS[k],have=S.rovers[k]||k==="lrv"&&S.stage>=2;
+    return '<div class="card" style="margin:0"><h3>'+r.icon+' '+esc(r.n)+'</h3><p class="small">'+esc(r.role)+'</p><p class="small"><b>Game use:</b> '+esc(r.use)+'</p><p class="small '+(have?'good':'muted')+'">'+(r.unlock===-2?'Case study':have?'Unlocked':'Locked: needs '+r.unlock+' SP')+'</p></div>'}).join("")+'</div></div>';
+}
+
+/* ============ BRIEFING ============ */
+function startBrief(wk,crewed){
+  const decs=crewed?["bat","tools"]:["power","wheels","tools","dust"];
+  brief={wk,crewed:!!crewed,rover:crewed?"lrv":(Object.keys(S.rovers).filter(k=>ROVERS[k].mass>0)[0]),pick:{}};
+  decs.forEach(d=>brief.pick[d]=DEC[d].opts[0].id);
+  go("brief");
+}
+function bTotals(){
+  const R=ROVERS[brief.rover];let mass=R.mass,cost=R.cost;
+  for(const d in brief.pick){if(d==="dust"&&brief.pick.power==="nuclear")continue;const o=DEC[d].opts.find(x=>x.id===brief.pick[d]);mass+=o.mass;cost+=o.cost}
+  return {mass,launch:Math.round((brief.crewed?15:15+mass*1.5)+cost)};
+}
+function renderBrief(){
+  const W=WORLDS[brief.wk],t=bTotals(),cap=brief.crewed?99:28,over=t.mass>cap,broke=S.budget<t.launch;
+  const rovers=brief.crewed?"":'<div class="card"><h3>Choose rover</h3><div class="row">'+Object.keys(S.rovers).filter(k=>ROVERS[k].mass>0).map(k=>'<button class="opt '+(brief.rover===k?'sel':'')+'" style="width:auto" onclick="brief.rover=\''+k+'\';render()">'+ROVERS[k].icon+' '+ROVERS[k].n+'<span class="ctx">'+esc(ROVERS[k].use)+'</span></button>').join("")+'</div></div>';
+  const decs=Object.keys(brief.pick).map(d=>{
+    if(d==="dust"&&brief.pick.power==="nuclear")return"";
+    return '<div class="card"><h3>'+DEC[d].title+'</h3>'+DEC[d].opts.map(o=>'<button class="opt '+(brief.pick[d]===o.id?'sel':'')+'" onclick="brief.pick[\''+d+'\']=\''+o.id+'\';render()">'+o.label+' <span class="small muted">(+'+o.mass+' kg, +$'+o.cost+'M)</span><span class="ctx">'+esc(o.ctx)+'</span></button>').join("")+'</div>'}).join("");
+  return '<div class="card"><div class="row spread"><h2>'+W.icon+' '+(brief.crewed?"Crewed Moon mission briefing":W.n+" rover briefing")+'</h2><button onclick="go(\'hub\')">← Back</button></div>'+
+   '<p class="muted">Delay: '+esc(W.delay)+(S.junior?' Junior hint: no choice is correct; each one fails in a different situation.':'')+'</p></div>'+rovers+decs+
+   '<div class="card"><div class="row spread"><div>'+barH("Ship weight "+t.mass+" / "+(brief.crewed?"–":cap)+" kg",brief.crewed?0:t.mass,cap,over?'danger':'blue')+'</div><div><b>Launch cost: $'+t.launch+'M</b> (budget $'+Math.round(S.budget)+'M)</div></div>'+
+   (over?'<p class="bad">Too heavy! Heavier ships cost more and this one cannot launch. Drop something.</p>':'')+(broke?'<p class="bad">Not enough budget. Earn Science Points to raise funding.</p>':'')+
+   '<button class="primary" '+(over||broke?'disabled':'')+' onclick="launch()">🚀 Launch</button></div>';
+}
+
+/* ============ MISSION ENGINE ============ */
+function launch(){
+  const t=bTotals(),W=WORLDS[brief.wk],R=ROVERS[brief.rover],p=brief.pick;
+  S.budget-=t.launch;S.missions++;
+  const crewed=brief.crewed;
+  M={wk:brief.wk,W,R,crewed,opts:Object.assign({},p),power:100,wheel:100,dust:0,storm:0,pos:0,at:null,carried:[],sent:[],used:{},steps:crewed?(p.bat==="ext"?16:12):W.steps,
+     over:false,why:"",queue:[],log:[],ev:{},sp:0,wasted:0,cost:t.launch,instr:0,total:crewed?(p.bat==="ext"?16:12):W.steps};
+  if(crewed){M.opts.power="battery"}
+  addLog("Launch successful! "+(crewed?"Crew ready on the Moon.":R.n+" has landed on "+W.n+"."),"ok");
+  save();go("mission");
+}
+function addLog(m,c){M.log.unshift('<p class="'+(c||'')+'">'+esc(m)+'</p>')}
+function actLabel(a){
+  if(a.t==="drive")return "Drive to "+M.W.sites.find(s=>s.id===a.s).n;
+  return {collect:"Collect sample",transmit:M.crewed?"Pack & send sample return":"Transmit to Earth",charge:"Charge / wait",clean:"Clean panels",instr:"Run science instrument"}[a.t];
+}
+function renderMission(){
+  const W=M.W,solar=M.opts.power==="solar",q=W.queue>1&&!M.crewed;
+  const pts=W.sites.map(s=>'<div class="pt" style="left:'+(s.pos/5.6*92+4)+'%"><span>'+s.icon+'</span>'+s.n+'</div>').join("")+'<div class="pt" style="left:4%;"><span>🏠</span>Base</div>';
+  const rvx=(M.pos/5.6*92+4);
+  const btn=(a,label,dis)=>'<button class="sm" '+(dis?'disabled':'')+' onclick=\'act('+JSON.stringify(a)+')\'>'+label+'</button>';
+  const sitesBtn=W.sites.map(s=>btn({t:"drive",s:s.id},"🚗 "+s.n,M.over||(!q&&M.wheel<=0))).join(" ");
+  const dis=M.over;
+  return '<div class="card"><div class="row spread"><h2>'+W.icon+' '+(M.crewed?"Crewed LRV mission":M.R.n+" mission")+'</h2><span class="chip">Step '+(M.total-M.steps)+'/'+M.total+'</span></div>'+
+   '<div class="grid"><div>'+(M.opts.power==="battery"?barH("Battery",M.power,100):barH("⚡ Power",M.power,100))+'</div>'+(M.crewed?"":'<div>'+barH("🛞 Wheels",M.wheel,100)+'</div>')+(solar?'<div>'+barH("🌫️ Dust on panels",100-M.dust,100)+'</div>':'')+'</div>'+
+   '<p class="small">'+(M.storm>0?'<b class="bad">🌪️ Dust storm! ('+M.storm+' steps left)</b> ':'☀️ Clear skies. ')+'Carrying: '+(M.carried.length?M.carried.join(", "):"nothing")+' · Sent: '+(M.sent.length?M.sent.join(", "):"nothing")+'</p>'+
+   '<div class="map">'+pts+'<div class="rv" style="left:'+rvx+'%">'+(M.crewed?"🏎️":M.R.icon)+'</div></div>'+
+   '<div class="row">'+sitesBtn+'</div><div class="row" style="margin-top:8px">'+
+   btn({t:"collect"},"⛏️ Collect sample",dis)+btn({t:"transmit"},M.crewed?"📦 Pack & send return":"📡 Transmit",dis)+btn({t:"charge"},"🔋 Charge / wait",dis)+
+   (solar&&M.opts.dust==="shield"?btn({t:"clean"},"⚡ Clean panels",dis):"")+(M.opts.tools==="full"?btn({t:"instr"},"🔬 Instrument",dis):"")+
+   '<button class="sm" '+(dis?'disabled':'')+' onclick="finishMission(\'You ended the mission.\')">🛑 End mission</button></div>'+
+   (q?'<div class="card" style="margin:10px 0 0"><b>Command queue</b> ('+M.queue.length+'/'+W.queue+') <span class="small muted">Orders arrive a sol late, so you plan blind.</span><div class="small">'+(M.queue.length?M.queue.map((a,i)=>(i+1)+'. '+actLabel(a)).join(" → "):"Add 3 commands, then send them.")+'</div><div class="row" style="margin-top:6px"><button class="primary sm" '+(M.queue.length<W.queue||dis?'disabled':'')+' onclick="sendQueue()">Send queue</button><button class="sm" onclick="M.queue=[];render()">Clear</button></div></div>':'')+
+   '</div><div class="card"><b>Mission log</b><div class="log">'+M.log.join("")+'</div></div>';
+}
+function act(a){
+  if(M.over)return;
+  if(M.W.queue>1&&!M.crewed){if(M.queue.length<M.W.queue){M.queue.push(a);render()}return}
+  step(a);render();
+}
+function sendQueue(){
+  addLog("Sol begins: commands arrive late, rover runs the queue by itself.","ev");M.ev.delay=1;
+  const q=M.queue;M.queue=[];
+  for(const a of q){if(M.over)break;step(a)}
+  render();
+}
+function step(a){
+  const W=M.W,solar=M.opts.power==="solar",cr=M.crewed;let cost=0;
+  const fail=m=>{addLog(m,"er");M.wasted++};
+  const tl=M.opts.tools==="full"?1.15:1;
+  if(a.t==="drive"){
+    const s=W.sites.find(x=>x.id===a.s);
+    if(!cr&&M.wheel<=0)fail("Wheels are broken: the rover cannot drive.");
+    else if(M.at===s.id)fail("Already at "+s.n+".");
+    else{
+      cost=Math.max(2,Math.round(Math.abs(s.pos-M.pos)*4*M.R.drive*tl));
+      if(M.power-cost<1)fail("Not enough power for that drive ("+cost+" needed).");
+      else{M.power-=cost;M.pos=s.pos;M.at=s.id;addLog("Drove to "+s.n+" (-"+cost+" power).");
+        if(!cr&&rnd()<s.rocky*W.rock*1.4){const d=M.opts.wheels==="tough"?7:22;M.wheel-=d;M.ev.wheel=1;addLog("Sharp rocks scratch the wheels! (-"+d+"% wheel health)","er");
+          if(M.wheel<=0){M.ev.stuck=1;addLog("A wheel failed. The rover is stuck here.","er")}}}
+    }
+  }else if(a.t==="collect"){
+    const s=W.sites.find(x=>x.id===M.at);cost=cr?5:8;
+    if(!s)fail("Not at any sample site.");
+    else if(M.used["c"+s.id]||M.carried.includes(s.sample)&&0)fail("Already collected from "+s.n+".");
+    else if(M.power-cost<1)fail("Not enough power to run the drill.");
+    else if(M.carried.length>=4)fail("Sample bin is full. Transmit first.");
+    else{M.power-=cost;M.used["c"+s.id]=1;M.carried.push(s.sample);addLog("Collected "+s.sample+"! "+SAMPLE_INFO[s.sample],"ok")}
+  }else if(a.t==="transmit"){
+    cost=cr?3:4;
+    if(!M.carried.length)fail("Nothing to send.");
+    else if(M.power-cost<1)fail("Not enough power to transmit.");
+    else{M.power-=cost;M.carried.forEach(t=>{if(!M.sent.includes(t))M.sent.push(t)});addLog("Sent "+M.carried.join(", ")+" to Earth!","ok");M.carried=[]}
+  }else if(a.t==="charge"){
+    if(cr)addLog("Waiting uses crew oxygen. Batteries do not recharge.");
+    else{const g=solar?Math.round(14*(1-M.dust/100)*(M.storm>0?.15:1)):8;M.power=Math.min(100,M.power+g);addLog("Charging: +"+g+" power."+(solar&&M.dust>60?" Dusty panels give less.":""))}
+  }else if(a.t==="clean"){
+    cost=2;if(M.power-cost<1)fail("Not enough power to run the dust shield.");else{M.power-=cost;M.dust=0;addLog("Panels cleaned by the electrostatic shield.","ok")}
+  }else if(a.t==="instr"){
+    cost=6;const s=W.sites.find(x=>x.id===M.at);
+    if(!s)fail("Move to a site first.");else if(M.used["i"+s.id])fail("Already measured here.");
+    else if(M.power-cost<1)fail("Not enough power for the instruments (tools use Power).");
+    else{M.power-=cost;M.used["i"+s.id]=1;M.instr++;M.ev.tools=1;addLog("Instrument reading at "+s.n+": weather, radiation and laser data.","ok")}
+  }
+  tick();
+}
+function tick(){
+  const solar=M.opts.power==="solar",cr=M.crewed;
+  if(!cr){
+    if(M.storm>0){M.storm--;M.dust=Math.min(100,M.dust+8);if(M.storm===0)addLog("The dust storm clears.")}
+    else{M.dust=Math.min(100,M.dust+4);if(solar&&M.opts.dust!=="shield"&&rnd()<.08&&M.dust>20){M.dust=Math.max(0,M.dust-25);addLog("A gust of wind clears some dust off the panels.")}
+      if(rnd()<M.W.storm){M.storm=4;M.ev.dust=1;addLog("A dust storm begins!"+(solar?" Solar output collapses.":" Your nuclear battery keeps going."),"ev")}}
+    const g=solar?Math.round(7*(1-M.dust/100)*(M.storm>0?.15:1)*10)/10:5;
+    M.power=Math.min(100,M.power+g-2);
+    if(!solar&&M.storm>0)M.ev.nuke=1;
+  }
+  M.steps--;
+  if(M.power<=0.5){M.ev.dead=1;if(solar&&M.dust>50)M.ev.dust=1;finishMission("The rover ran out of power and fell silent."+(M.carried.length?" Untransmitted samples are lost.":""));return}
+  if(M.steps<=0)finishMission("Mission time is up.");
+  else if(cr&&M.power<=1)finishMission("The battery is flat.");
+}
+function finishMission(why){
+  if(M.over)return;
+  M.over=true;M.why=why;
+  const wk=M.wk,store=S.samples[wk];let pts=0,fresh=[];
+  M.sent.forEach(t=>{if(!store[t]){store[t]=1;fresh.push(t);pts+=10}else pts+=3});
+  pts+=M.instr*(M.R===ROVERS.viper?8:5);
+  const ok=M.sent.length>0&&(M.crewed?M.sent.length>=3:true);
+  if(M.carried.length)M.ev.lostdata=1;
+  if(ok)pts+=8;
+  pts+=Math.round(M.cost/20);
+  if(M.opts.tools==="full"&&M.instr===0)M.ev.tools=1;
+  if(M.W.queue>1&&M.wasted>0)M.ev.delay=1;
+  if(M.crewed)M.ev.lrv=1;
+  if(M.R.mass>14||M.opts.power==="nuclear")M.ev.weight=1;
+  M.pts=pts;M.fresh=fresh;M.ok=ok;
+  // stage progress
+  let adv="";
+  if(wk==="moon"&&!M.crewed&&S.stage===1&&WORLDS.moon.types.every(t=>store[t])){S.pending="site";adv="All four Moon sample types collected! Stage 1 complete."}
+  if(M.crewed&&ok&&S.stage===2){S.pending="method";adv="Crewed sample return done! Stage 2 complete."}
+  M.adv=adv;
+  S.sp+=pts;S.budget+=pts*2;checkUnlocks();grantIfBroke();save();go("debrief");
+}
+function renderDebrief(){
+  const keys=Object.keys(M.ev).filter(k=>DEBRIEF[k]);
+  if(!keys.length)keys.push("weight");
+  const cards=keys.map(k=>'<div class="debrief"><b>'+DEBRIEF[k][0]+'</b><br>'+DEBRIEF[k][1]+'</div>').join("");
+  const next=S.pending?'<button class="primary" onclick="go(\'choice\')">Continue to choice screen →</button>':'<button class="primary" onclick="go(\'hub\')">Back to Mission Control</button> <button onclick="startBrief(\''+M.wk+'\','+M.crewed+')">Try again with a new design</button>';
+  return '<div class="card"><h2>'+(M.ok?"✅ Mission debrief":"📋 Mission debrief")+'</h2><p>'+esc(M.why)+'</p>'+
+   '<p>Samples sent: <b>'+(M.sent.length?M.sent.map(esc).join(", "):"none")+'</b>'+(M.fresh.length?' (new: '+M.fresh.map(esc).join(", ")+')':'')+' · Instrument readings: '+M.instr+'</p>'+
+   '<p class="good"><b>+'+M.pts+' Science Points</b> (+$'+(M.pts*2)+'M funding)</p>'+(M.adv?'<p class="good"><b>🎉 '+M.adv+'</b></p>':'')+
+   (M.ok?"":'<p class="muted">No game over: retry with a different design. A failed mission is how real engineers learn.</p>')+
+   '<h3>What the real missions teach</h3>'+cards+
+   (M.fresh.length?'<h3>New rock facts</h3>'+M.fresh.map(t=>'<div class="debrief"><b>'+esc(t)+'</b>: '+esc(SAMPLE_INFO[t])+'</div>').join(""):"")+
+   '<div class="row" style="margin-top:10px">'+next+'</div></div>';
+}
+
+/* ============ CHOICE SCREENS ============ */
+function choice(){
+  if(S.pending==="site"){
+    const have=S.samples.moon;
+    return '<div class="card"><h2>🧭 Choose your outpost and landing site</h2><p class="muted">Your rover samples hint at which sites are safe. Every choice trades something.</p></div><div class="grid">'+
+     Object.keys(SITES).map(k=>{const s=SITES[k],known=have[s.need];
+       return '<div class="card" style="margin:0"><h3>'+s.icon+' '+s.n+'</h3><p class="small">'+(known?'Evidence: '+esc(s.why):'Unknown evidence')+'</p><p class="small">'+esc(s.note)+'</p><p class="small muted">Landing pad: '+s.pad+' px wide</p><button class="primary" onclick="pickSite(\''+k+'\')">Choose</button></div>'}).join("")+'</div>';
+  }
+  if(S.pending==="method"){
+    return '<div class="card"><h2>🧱 Choose your building method</h2><p class="muted">Upfront cost versus long-term savings.</p></div><div class="grid">'+
+     '<div class="card" style="margin:0"><h3>🚢 Ship all from Earth</h3><p class="small">No setup cost. Every brick and beam has to launch, so heavy designs need more shipments.</p><button class="primary" onclick="pickMethod(false)">Choose</button></div>'+
+     '<div class="card" style="margin:0"><h3>🖨️ Print with local regolith</h3><p class="small">Pay $12M now for a printing rover. Regolith covers (radiation and micrometeorite shields) cost almost nothing to ship later.</p><button class="primary" '+(S.budget<12?'disabled':'')+' onclick="pickMethod(true)">Choose ($12M)</button></div></div>';
+  }
+  return '<div class="card"><p>Nothing to choose.</p><button onclick="go(\'hub\')">Back</button></div>';
+}
+function pickSite(k){S.site=k;S.pending=null;S.stage=2;S.rel=0;S.landings=0;save();toast("Site chosen: "+SITES[k].n+". Stage 2 unlocked!");go("hub")}
+function pickMethod(p){if(p){S.budget-=12;S.printer=true}S.pending=null;S.stage=3;save();toast("Stage 3 unlocked: build the outpost!");go("hub")}
+
+/* ============ LANDING MINIGAME ============ */
+function renderLanding(){
+  const site=SITES[S.site||"mare"],data=Object.keys(S.samples.moon).length;
+  return '<div class="card"><div class="row spread"><h2>🛬 Landing practice: '+site.icon+' '+site.n+'</h2><button onclick="go(\'hub\')">← Back</button></div>'+
+   '<p class="muted small">Rover scouting gave you '+data+' sample types, which widens the safe pad by '+data*4+' px. Land gently on the flat pad: vertical speed under 3 m/s and sideways speed under 2 m/s. Controls: ↑/Space = main engine, ←/→ = side thrusters (or use the buttons).</p>'+
+   '<canvas id="cv" width="700" height="420"></canvas>'+
+   '<div class="row" style="margin-top:8px"><button id="bL">◀</button><button id="bU">▲ Thrust</button><button id="bR">▶</button><button class="primary" id="bGo" onclick="newLanding()">'+(S.budget<5?'Not enough budget':'Start landing ($5M)')+'</button></div>'+
+   '<div id="res"></div>'+
+   barH("Reliability (crew launch needs 75%)",S.rel,100,S.rel>=75?'':'blue')+'</div>';
+}
+const KEY={};
+function onKey(e,d){const m={ArrowUp:"u",w:"u"," ":"u",ArrowLeft:"l",a:"l",ArrowRight:"r",d:"r"}[e.key];if(m){KEY[m]=d;if(V==="landing")e.preventDefault()}}
+window.addEventListener("keydown",e=>onKey(e,true));window.addEventListener("keyup",e=>onKey(e,false));
+function stopLanding(){if(LND)LND.stop=true;LND=null}
+function initLanding(){
+  const site=SITES[S.site||"mare"],data=Object.keys(S.samples.moon).length;
+  const bind=(id,k)=>{const b=$("#"+id);["pointerdown"].forEach(ev=>b.addEventListener(ev,e=>{KEY[k]=true;e.preventDefault()}));["pointerup","pointerleave","pointercancel"].forEach(ev=>b.addEventListener(ev,()=>KEY[k]=false))};
+  bind("bL","l");bind("bU","u");bind("bR","r");
+  LND={site,pw:site.pad+data*4,stop:false,state:"ready",c:$("#cv")};
+  LND.pad=150+rnd()*400;
+  const pts=[];for(let x=0;x<=700;x+=25){let y=355;const d=Math.abs(x-LND.pad);if(d>LND.pw/2+8)y=345+Math.sin(x*.07+LND.pad)*(site.id==="rim"?24:site.id==="high"?18:8)+rnd()*(site.id==="rim"?16:8);pts.push([x,y])}
+  LND.terr=pts;
+  LND.ground=x=>{if(Math.abs(x-LND.pad)<=LND.pw/2)return 355;const i=Math.max(0,Math.min(pts.length-2,Math.floor(x/25)));const t=(x-pts[i][0])/25;return pts[i][1]*(1-t)+pts[i+1][1]*t};
+  LND.L={x:100,y:40,vx:0,vy:0,fuel:100};
+  drawLanding(LND);
+}
+function newLanding(){
+  if(!LND||LND.state==="flying")return;
+  if(S.budget<5){toast("Not enough budget. Earn Science Points!");return}
+  S.budget-=5;chips();$("#res").innerHTML="";
+  initLanding();
+  LND.state="flying";LND.L={x:80+rnd()*540,y:30,vx:(rnd()-.5)*40,vy:0,fuel:100};
+  let last=performance.now();const me=LND;
+  (function loop(now){
+    if(me.stop)return;const dt=Math.min(.05,(now-last)/1000);last=now;
+    const L=me.L;let ax=0,ay=16;
+    if(L.fuel>0){if(KEY.u){ay-=30;L.fuel-=10*dt}if(KEY.l){ax-=22;L.fuel-=4*dt}if(KEY.r){ax+=22;L.fuel-=4*dt}}
+    L.vx+=ax*dt;L.vy+=ay*dt;L.x+=L.vx*dt;L.y+=L.vy*dt;
+    me.dust=KEY.u&&L.y>260?(me.dust||0)+1:0;
+    drawLanding(me);
+    const gy=me.ground(L.x);
+    if(L.x<0||L.x>700){me.state="done";endLanding(false,"The lander drifted away from the landing zone.");return}
+    if(L.y+12>=gy){me.state="done";
+      const onPad=Math.abs(L.x-me.pad)<=me.pw/2-6,vy=L.vy/10,vx=Math.abs(L.vx)/10;
+      if(!onPad)endLanding(false,"You touched down off the flat pad. Rocks and slopes can tip a lander over.");
+      else if(vy>3)endLanding(false,"Too fast! Touchdown at "+vy.toFixed(1)+" m/s broke a leg. Real landers must be slow and steady.");
+      else if(vx>2)endLanding(false,"Too much sideways drift ("+vx.toFixed(1)+" m/s) tipped the lander.");
+      else endLanding(true,"Soft touchdown at "+vy.toFixed(1)+" m/s with "+Math.round(L.fuel)+"% fuel left.");
+      return}
+    requestAnimationFrame(loop);
+  })(last);
+}
+function drawLanding(me){
+  const c=me.c.getContext("2d"),L=me.L;c.fillStyle="#02040f";c.fillRect(0,0,700,420);
+  c.fillStyle="#fff";for(let i=0;i<40;i++)c.fillRect((i*97)%700,(i*53)%200,1.5,1.5);
+  c.fillStyle="#3b3f5c";c.beginPath();c.moveTo(0,420);me.terr.forEach(p=>c.lineTo(p[0],p[1]));c.lineTo(700,420);c.fill();
+  c.fillStyle="#4ade80";c.fillRect(me.pad-me.pw/2,353,me.pw,5);
+  c.fillStyle="#9aa8d8";c.font="12px sans-serif";c.fillText("PAD",me.pad-10,375);
+  if(me.dust>4){c.fillStyle="rgba(200,200,200,.25)";c.beginPath();c.arc(L.x,me.ground(L.x)-6,me.dust*1.5,0,6.3);c.fill()}
+  c.fillStyle="#e5e7eb";c.fillRect(L.x-10,L.y-10,20,16);c.fillStyle="#fbbf24";c.fillRect(L.x-14,L.y+6,6,6);c.fillRect(L.x+8,L.y+6,6,6);
+  if(KEY.u&&L.fuel>0&&me.state==="flying"){c.fillStyle="#fb923c";c.beginPath();c.moveTo(L.x-5,L.y+6);c.lineTo(L.x,L.y+22);c.lineTo(L.x+5,L.y+6);c.fill()}
+  c.fillStyle="#eaf0ff";c.font="13px sans-serif";
+  c.fillText("Vertical "+(L.vy/10).toFixed(1)+" m/s   Sideways "+(L.vx/10).toFixed(1)+" m/s   Fuel "+Math.max(0,Math.round(L.fuel))+"%",10,18);
+}
+function endLanding(ok,msg){
+  S.landings++;const before=S.rel;
+  S.rel=ok?Math.min(100,S.rel+25):Math.max(0,S.rel-10);
+  if(ok)S.sp+=6,S.budget+=12;
+  grantIfBroke();save();chips();
+  $("#res").innerHTML='<div class="debrief"><b class="'+(ok?"good":"bad")+'">'+(ok?"Successful landing! Reliability "+before+"% → "+S.rel+"%":"Landing failed. Reliability "+before+"% → "+S.rel+"%")+'</b><br>'+esc(msg)+'<br>'+(S.rel>=75?'Reliability is proven. You can launch a crew from Mission Control.':'Real missions land many times before people ride along.')+'</div>';
+  const b=$("#bGo");if(b)b.textContent=S.budget<5?"Not enough budget":"Try again ($5M)";
+}
+
+/* ============ CREW ============ */
+const ASTROS=[["🧑‍🚀","Sky"],["👩‍🚀","Nova"],["👨‍🚀","Orion"]];
+function crew(){
+  return '<div class="card"><div class="row spread"><h2>👩‍🚀 Choose your astronaut</h2><button onclick="go(\'hub\')">← Back</button></div><p class="muted">Your landing system is proven (reliability '+S.rel+'%). The crew rides the Apollo-style Lunar Roving Vehicle, faster than robot rovers but limited by batteries and oxygen.</p>'+
+   '<div class="row">'+ASTROS.map(a=>'<button class="opt" style="width:auto" onclick="S.astro={icon:\''+a[0]+'\',name:\''+a[1]+'\'};save();startBrief(\'moon\',true)">'+a[0]+' '+a[1]+'</button>').join("")+'</div></div>';
+}
+
+/* ============ OUTPOST ============ */
+const MODS=[
+ {id:"home",n:"Living quarters & command module",icon:"🏠",mass:14,str:6,therm:7,shield:3,press:true},
+ {id:"water",n:"Water tank",icon:"💧",mass:8,str:4,therm:7,shield:0},
+ {id:"wc",n:"Toilets",icon:"🚽",mass:5,str:4,therm:4,shield:0},
+ {id:"lab",n:"Rover garage & sample lab",icon:"🔬",mass:10,str:5,therm:4,shield:1},
+ {id:"pad",n:"Landing pad",icon:"🛬",mass:6,str:6,therm:0,shield:0}
+];
+const MATS={
+ alu:{n:"Aluminum alloy",m:1,s:6,c:1,sh:1,ctx:"Light and easy to build; the default backbone (ISS, Apollo)."},
+ ti:{n:"Titanium alloy",m:1,s:9,c:2.2,sh:1,ctx:"Very strong for its weight; costs more to ship."},
+ steel:{n:"Stainless steel",m:1.8,s:8,c:1,sh:3,ctx:"Durable and shields well, but heavy."},
+ honey:{n:"Honeycomb sandwich panels",m:.7,s:7,c:1.6,sh:1,ctx:"Stiff and light: metal core between thin sheets."},
+ carbon:{n:"Carbon fiber composite",m:.5,s:7,c:2.5,sh:0,ctx:"Lighter still, but pressurized bulkheads still rely on metal."}
+};
+const INS={basic:{n:"Basic blankets",t:4,m:1,c:1},kapton:{n:"Full Kapton and Mylar layers",t:8,m:1.5,c:3}};
+function startOutpost(){OD={mods:{}};MODS.forEach(m=>OD.mods[m.id]={mat:"alu",ins:"basic",reg:false});go("outpost")}
+function oCalc(){
+  const site=SITES[S.site||"mare"];let mass=0,cost=0,anyReg=false;
+  MODS.forEach(m=>{const d=OD.mods[m.id],mt=MATS[d.mat],ins=INS[d.ins];
+    let mm=m.mass*mt.m+ins.m,cc=m.mass*mt.c+ins.c;
+    if(m.id==="water"&&site.ice){mm*=.5;cc*=.5}
+    if(d.reg){anyReg=true;cc+=2}
+    mass+=mm;cost+=cc});
+  let printer=0;if(anyReg&&!S.printer){mass+=8;cost+=12;printer=1}
+  const ships=Math.max(1,Math.ceil(mass/30));cost+=ships*18;
+  return {mass:Math.round(mass*10)/10,cost:Math.round(cost),ships,printer};
+}
+function oEval(){
+  const site=SITES[S.site||"mare"];
+  return MODS.map(m=>{const d=OD.mods[m.id],mt=MATS[d.mat],ins=INS[d.ins];
+    let str=mt.s+(d.reg?1:0),sh=mt.sh+(d.reg?3:0),th=ins.t;
+    if(m.press&&(d.mat==="carbon"||d.mat==="honey"))str-=d.mat==="carbon"?3:0;
+    const needStr=m.str+site.strength,needTh=m.therm?m.therm+site.thermal:0,probs=[];
+    if(str<needStr)probs.push("Structure too weak ("+str+" vs "+needStr+" needed): stress and micrometeorite hits cracked it"+(m.press?" and pressure was lost":"")+".");
+    if(th<needTh)probs.push("Insulation too thin ("+th+" vs "+needTh+" needed): temperature swings froze or cooked it.");
+    if(sh<m.shield)probs.push("Radiation shielding too low ("+sh+" vs "+m.shield+" needed): add steel or a regolith cover.");
+    return {m,ok:!probs.length,probs,str,th,sh,needStr,needTh};
+  });
+}
+function renderOutpost(){
+  const site=SITES[S.site||"mare"],t=oCalc(),ev=OD.tested?OD.res:null,broke=S.budget<t.cost;
+  const rows=MODS.map((m,i)=>{const d=OD.mods[m.id];const e=oEval()[i];
+   return '<div class="card" style="margin:8px 0"><h3>'+m.icon+' '+m.n+'</h3><div class="row">'+
+   '<label class="small">Structure <select onchange="OD.mods[\''+m.id+'\'].mat=this.value;OD.tested=0;render()">'+Object.keys(MATS).map(k=>'<option value="'+k+'" '+(d.mat===k?'selected':'')+'>'+MATS[k].n+'</option>').join("")+'</select></label>'+
+   '<label class="small">Insulation <select onchange="OD.mods[\''+m.id+'\'].ins=this.value;OD.tested=0;render()">'+Object.keys(INS).map(k=>'<option value="'+k+'" '+(d.ins===k?'selected':'')+'>'+INS[k].n+'</option>').join("")+'</select></label>'+
+   '<label class="small"><input type="checkbox" '+(d.reg?'checked':'')+' onchange="OD.mods[\''+m.id+'\'].reg=this.checked;OD.tested=0;render()"> 🖨️ Regolith cover</label></div>'+
+   '<p class="small muted">'+esc(MATS[d.mat].ctx)+(S.junior?' · Needs: strength '+e.needStr+', thermal '+e.needTh+(m.shield?', shield '+m.shield:'')+' · You have: strength '+e.str+', thermal '+e.th+', shield '+e.sh:'')+'</p>'+
+   (ev?'<p class="small '+(ev[i].ok?'good':'bad')+'">'+(ev[i].ok?'✅ Stayed working through the stress test.':'❌ '+esc(ev[i].probs.join(" ")))+'</p>':'')+'</div>'}).join("");
+  return '<div class="card"><div class="row spread"><h2>🏗️ Outpost at '+site.icon+' '+site.n+'</h2><button onclick="go(\'hub\')">← Back</button></div>'+
+   '<p class="muted">Choose materials for each module. Ships carry 30 kg each, and every shipment costs $18M. The win condition is an outpost whose systems <b>keep working</b>, not the biggest one.</p>'+
+   (site.ice?'<p class="small good">Ice nearby: the water tank costs half the weight and money.</p>':'')+(S.printer?'<p class="small good">Your printing rover is already on the Moon, so regolith covers cost almost nothing.</p>':'<p class="small muted">Regolith covers need a printing rover (+$12M and 8 kg shipped, once).</p>')+'</div>'+rows+
+   '<div class="card"><div class="row spread"><div><b>Total weight: '+t.mass+' kg → '+t.ships+' shipment'+(t.ships>1?'s':'')+'</b><br><b>Total cost: $'+t.cost+'M</b> (budget $'+Math.round(S.budget)+'M)</div>'+
+   '<button class="primary" '+(broke?'disabled':'')+' onclick="buildOutpost()">🚀 Ship &amp; run stress test</button></div>'+(broke?'<p class="bad">Over budget. Choose lighter, cheaper materials or earn funding with quizzes and the Survival Lab.</p>':'')+
+   (ev&&OD.win?'<div class="debrief"><b class="good">🎉 Outpost operational!</b> Every system kept working. '+(S.stage>=4?'Mars training is now unlocked.':'')+'</div><button class="primary" onclick="go(\'hub\')">Mission Control</button>':'')+
+   (ev&&!OD.win?'<div class="debrief"><b>Systems failed.</b> No game over: change the materials and try again. Salvage returned $'+OD.refund+'M.<br>Real mission lesson: ISS and Apollo hulls use aluminum for light, strong structures; Kapton and Mylar blankets handle temperature swings.</div>':'')+'</div>';
+}
+function buildOutpost(){
+  const t=oCalc();S.budget-=t.cost;if(t.printer)S.printer=true;
+  const res=oEval();OD.res=res;OD.tested=1;OD.win=res.every(r=>r.ok);
+  if(OD.win){S.stage=4;const pts=30+Math.max(0,Math.round(60-t.mass));S.sp+=pts;S.budget+=pts*2;toast("Outpost built! +"+pts+" Science Points");OD.refund=0}
+  else{OD.refund=Math.round(t.cost*.6);S.budget+=OD.refund}
+  checkUnlocks();grantIfBroke();save();chips();render();
+}
+
+render();
+</script>
+</body>
+</html>
