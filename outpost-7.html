@@ -69,8 +69,8 @@ body.home{background:#000}body.home header{display:none}
 @keyframes drift{from{transform:translateX(-80px)}to{transform:translateX(880px)}}
 @media(prefers-reduced-motion:reduce){.streak{animation:none}}
 @media(max-width:600px){main{padding:10px}.stages div{font-size:.7rem}}
-body.wide main{max-width:1280px}
-.play{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:12px;align-items:start}
+body.wide main{max-width:1700px}body.nosb .side{display:none}body.nosb .play{grid-template-columns:1fr}
+.play{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px;align-items:start}
 .stage{position:relative}
 #wc{width:100%;max-width:none;height:auto;aspect-ratio:900/540;border:1px solid var(--line);border-radius:12px;background:#0a0d1c;display:block;touch-action:none;cursor:pointer}
 .ctrl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
@@ -103,12 +103,13 @@ const clamp=(v,a=0,b=100)=>Math.max(a,Math.min(b,v));
 const RES=[["o2","🫧","Oxygen"],["water","💧","Water"],["food","🍲","Food"],["power","⚡","Power"],["health","❤️","Health"],["morale","🙂","Morale"]];
 const RIC=Object.fromEntries(RES.map(r=>[r[0],r[1]]));
 const MODES={
- cadet:{n:"Cadet",icon:"🌱",tag:"Ages 6–9 · gentle",desc:"Slower supply drain, milder events, 8 energy a day, tips, and a wide landing pad.",dr:.6,sev:.6,en:8,pad:1.3,vy:4,hints:true},
- junior:{n:"Junior",icon:"🧑‍🚀",tag:"Ages 9–12 · standard",desc:"The standard survival challenge with 7 energy a day and tips from Mission Control.",dr:1,sev:1,en:7,pad:1,vy:3,hints:true},
- commander:{n:"Commander",icon:"🎖️",tag:"Challenge",desc:"Faster supply drain, harsher events, 6 energy a day, a smaller landing pad. No tips.",dr:1.25,sev:1.3,en:6,pad:.85,vy:2.5,hints:false},
- veteran:{n:"Veteran",icon:"🛰️",tag:"Hard",desc:"Supplies vanish fast, events hit hard, only 5 energy a day and a tiny pad. No tips.",dr:1.5,sev:1.7,en:5,pad:.7,vy:2,hints:false},
- free:{n:"Free Play",icon:"🧪",tag:"Sandbox",desc:"You cannot lose. Experiment with every choice and refill supplies any time.",dr:1,sev:1,en:8,pad:1,vy:3,hints:true,free:true}
+ cadet:{n:"Cadet",icon:"🌱",tag:"Ages 6–9 · gentle",desc:"Slower supply drain, milder events, 8 energy a day, tips, and a wide landing pad.",dr:.6,sev:.6,en:16,pad:1.3,vy:4,hints:true},
+ junior:{n:"Junior",icon:"🧑‍🚀",tag:"Ages 9–12 · standard",desc:"The standard survival challenge with 7 energy a day and tips from Mission Control.",dr:1,sev:1,en:14,pad:1,vy:3,hints:true},
+ commander:{n:"Commander",icon:"🎖️",tag:"Challenge",desc:"Faster supply drain, harsher events, 6 energy a day, a smaller landing pad. No tips.",dr:1.25,sev:1.3,en:13,pad:.85,vy:2.5,hints:false},
+ veteran:{n:"Veteran",icon:"🛰️",tag:"Hard",desc:"Supplies vanish fast, events hit hard, only 5 energy a day and a tiny pad. No tips.",dr:1.5,sev:1.7,en:11,pad:.7,vy:2,hints:false},
+ free:{n:"Free Play",icon:"🧪",tag:"Sandbox",desc:"You cannot lose. Experiment with every choice and refill supplies any time.",dr:1,sev:1,en:18,pad:1,vy:3,hints:true,free:true}
 };
+const DAY={o2:12,water:11,food:9,gen:60,use:14,health:3,morale:3,dust:18},NIGHT={o2:12,water:11,food:9,power:44,morale:5};
 const MD=()=>MODES[S.mode||"junior"];
 
 /* name, complexity(1-3), price($M), value(1-3), stage, fact */
@@ -262,6 +263,7 @@ const CH=[
  {id:"call",icon:"📞",n:"Call home",e:1,fx:{morale:12,power:-2},ctx:"Radio takes about 1.3 seconds each way between the Moon and Earth.",fact:"Talking with family and friends is a real part of astronaut mental health."},
  {id:"med",icon:"🩺",n:"Medical check",e:1,fx:{health:6},ctx:"Crews send health data to doctors on Earth.",fact:"Flight surgeons watch heart rate, sleep and bone health from the ground."},
  {id:"rest",icon:"🌍",n:"Rest and look at Earth",e:1,fx:{morale:8,health:2},ctx:"Astronauts say the view of Earth keeps them going on long missions.",fact:"Rest is not wasted time. Tired crews make mistakes."},
+ {id:"power",icon:"🔋",n:"Tune the battery bank",e:1,fx:{power:10},ctx:"Batteries store solar energy for the long lunar night and need balancing.",fact:"Lunar nights last about two weeks, so power storage is a life-or-death system."},
  {id:"shelter",icon:"🧱",n:"Pile regolith bags on the shelter",e:2,fx:{armor:1,power:-3},max:3,ctx:"Moon dust is a great shield against radiation and tiny meteoroids.",fact:"Thick layers of regolith cut radiation and micrometeorite damage."},
  {id:"isru",icon:"⚗️",n:"Make oxygen from moon rock",e:3,fx:{o2:30,power:-12},ctx:"Moon rock is about 40% oxygen by mass. Perseverance's MOXIE made oxygen on Mars.",fact:"Making supplies on site means launching less from Earth."}
 ];
@@ -367,6 +369,7 @@ const STN={
  water:{x:170,y:100,icon:"💧",label:"Water recycler",lamp:"water"},
  food:{x:310,y:100,icon:"🍲",label:"Galley",lamp:"food"},
  lab:{x:470,y:100,icon:"🔬",label:"Science lab"},
+ power:{x:125,y:190,icon:"🔋",label:"Battery bank",lamp:"power"},
  gym:{x:110,y:420,icon:"🏋️",label:"Gym"},
  comms:{x:310,y:420,icon:"📡",label:"Comms console",lamp:"morale"},
  med:{x:440,y:370,icon:"🩺",label:"Med bay",lamp:"health"},
@@ -379,7 +382,7 @@ const STN={
  field:{x:850,y:220,icon:"🔭",label:"Field site"},
  pad:{x:760,y:450,icon:"🛬",label:"Landing pad"}
 };
-const CHST={o2:"o2",water:"water",food:"food",dust:"solar",gym:"gym",call:"comms",med:"med",rest:"rest",shelter:"shelter",isru:"isru"};
+const CHST={power:"power",o2:"o2",water:"water",food:"food",dust:"solar",gym:"gym",call:"comms",med:"med",rest:"rest",shelter:"shelter",isru:"isru"};
 const OUTCH={dust:1,shelter:1,isru:1};
 const OUTRE=/crater|dune|riverbed|meteorite|cliff|lava|shadowed|space walk|boulder|rock layers|ice|sunset|sky|solar telescope|seismometer|instrument|sieve|volcanic|find water/i;
 const isOutSci=a=>OUTRE.test(a[0]);
@@ -433,7 +436,7 @@ function updateUse(){const b=$("#useBtn");if(!b)return;b.disabled=!P.near;b.text
 function stopLoop(){LOOP++}
 function startLoop(){stopLoop();const id=LOOP;let last=performance.now();(function f(now){if(id!==LOOP)return;const dt=Math.min(.05,(now-last)/1000);last=now;update(dt);draw();requestAnimationFrame(f)})(last)}
 function update(dt){
-  P.t+=dt;let dx=0,dy=0;
+  P.t+=dt;PART=PART.filter(q=>{q.l-=dt*1.1;q.x+=q.vx*dt;q.y+=q.vy*dt;return q.l>0});let dx=0,dy=0;
   if(!POP){if(K.l)dx--;if(K.r)dx++;if(K.u)dy--;if(K.d)dy++}
   const manual=dx||dy;
   if(manual){P.path=[];P.pending=null}
@@ -441,7 +444,7 @@ function update(dt){
   P.moving=false;
   if(dx||dy){const m=Math.hypot(dx,dy);dx/=m;dy/=m;P.fx=dx;P.fy=dy;const sp=(P.x>=556?85:125)*dt,nx=P.x+dx*sp,ny=P.y+dy*sp;let mv=false;
     if(ok(nx,P.y)){P.x=nx;mv=true}if(ok(P.x,ny)){P.y=ny;mv=true}
-    if(mv){P.moving=true;P.step+=sp;if(P.x>=556&&P.step>13){P.step=0;P.trail.push({x:P.x,y:P.y+8});if(P.trail.length>70)P.trail.shift()}}
+    if(mv){if(P.x>=556&&Math.random()<.4)PART.push({x:P.x,y:P.y+6,vx:(Math.random()-.5)*16,vy:-3-Math.random()*8,l:.8});P.moving=true;P.step+=sp;if(P.x>=556&&P.step>13){P.step=0;P.trail.push({x:P.x,y:P.y+8});if(P.trail.length>70)P.trail.shift()}}
     else if(P.path.length){P.path=[];P.pending=null}}
   const inNow=P.x<552;
   if(inNow&&!P.wasIn&&S.suitDust>30){S.cabinDust=clamp(S.cabinDust+S.suitDust);S.suitDust=0;toast("Moon dust got inside the habitat! Brush your suit at the airlock next time.");log("🧤 Dust tracked into the cabin.");save();refresh()}
@@ -450,59 +453,118 @@ function update(dt){
   if(best!==P.near){P.near=best;updateUse()}
 }
 function lampCol(id){const s=STN[id];if(!s.lamp)return null;const v=s.lamp==="dust"?100-S.dust:S.res[s.lamp];return v>50?"#4ade80":v>25?"#fbbf24":(Math.floor(P.t*3)%2?"#f87171":"#7f1d1d")}
-function draw(){
-  const cv=$("#wc");if(!cv)return;const c=cv.getContext("2d");c.clearRect(0,0,900,540);
-  // outside ground
-  let g=c.createLinearGradient(0,0,0,540);g.addColorStop(0,"#7b7f9c");g.addColorStop(1,"#4e5373");c.fillStyle=g;c.fillRect(556,0,344,540);
-  c.fillStyle="rgba(0,0,0,.18)";[[640,90,26,9],[880,60,18,6],[660,400,30,10],[870,400,22,8],[720,260,16,6],[880,300,16,6],[640,500,24,8]].forEach(a=>{c.beginPath();c.ellipse(a[0],a[1],a[2],a[3],0,0,6.3);c.fill()});
-  c.fillStyle="#5d6180";[[650,200],[690,420],[860,100],[880,380],[620,330]].forEach(a=>{c.beginPath();c.arc(a[0],a[1],6,0,6.3);c.fill()});
-  c.fillStyle="rgba(255,255,255,.12)";P.trail.forEach(t=>{c.beginPath();c.ellipse(t.x,t.y,3,1.8,0,0,6.3);c.fill()});
-  // interior floor
-  c.fillStyle="#232845";c.fillRect(20,30,550,480);
-  c.strokeStyle="#2d3358";c.lineWidth=1;for(let x=30;x<=550;x+=30){c.beginPath();c.moveTo(x,40);c.lineTo(x,500);c.stroke()}for(let y=40;y<=500;y+=30){c.beginPath();c.moveTo(30,y);c.lineTo(550,y);c.stroke()}
-  [[30,40,195,200,"#2a4a6a","Life support"],[231,40,164,200,"#5a4a30","Galley"],[401,40,149,200,"#3a3f7a","Science lab"],[30,300,195,200,"#4a3a5a","Gym"],[231,300,164,200,"#2f5a52","Comms"],[401,300,149,200,"#5a3a44","Med bay & bunks"]].forEach(r=>{c.fillStyle=r[4];c.globalAlpha=.28;c.fillRect(r[0],r[1],r[2],r[3]);c.globalAlpha=1;c.fillStyle="#9aa8d8";c.font="11px Audiowide,sans-serif";c.fillText(r[5],r[0]+8,r[1]+16)});
-  c.fillStyle="#3a4170";c.fillRect(38,254,512,32);c.fillStyle="#9aa8d8";c.font="10px Audiowide,sans-serif";c.fillText("CORRIDOR",250,276);
+/* ============ RENDERER (realistic top-down) ============ */
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+let BG=null,PART=[],ROCKS=[],DUSTPTS=[];
+const dayProg=()=>clamp(1-S.energy/MD().en,0,1);
+function clock(){const h=7+dayProg()*12;return String(Math.floor(h)).padStart(2,"0")+":"+String(Math.floor((h%1)*60)).padStart(2,"0")}
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+function box(c,x,y,w,h,c1,c2,r){const g=c.createLinearGradient(x,y,x,y+h);g.addColorStop(0,c1);g.addColorStop(1,c2);c.fillStyle=g;rr(c,x,y,w,h,r===undefined?3:r);c.fill();c.strokeStyle="rgba(0,0,0,.5)";c.lineWidth=1;c.stroke()}
+function disc(c,x,y,r,c1,c2){const g=c.createRadialGradient(x-r*.35,y-r*.35,r*.1,x,y,r);g.addColorStop(0,c1);g.addColorStop(1,c2);c.fillStyle=g;c.beginPath();c.arc(x,y,r,0,6.3);c.fill()}
+function led(c,x,y,col){c.fillStyle=col;c.shadowColor=col;c.shadowBlur=8;c.beginPath();c.arc(x,y,2.6,0,6.3);c.fill();c.shadowBlur=0}
+function plate(c,x,y,t){c.font="8.5px Audiowide,sans-serif";const w=c.measureText(t).width+10;c.fillStyle="rgba(5,8,25,.7)";rr(c,x-w/2,y-7,w,13,4);c.fill();c.fillStyle="#e3e9ff";c.textAlign="center";c.textBaseline="middle";c.fillText(t,x,y);c.textAlign="left";c.textBaseline="alphabetic"}
+function plateL(c,x,y,t){c.font="8.5px Audiowide,sans-serif";const w=c.measureText(t).width+10;c.fillStyle="rgba(5,8,25,.7)";rr(c,x,y-7,w,13,4);c.fill();c.fillStyle="#e3e9ff";c.textBaseline="middle";c.fillText(t,x+5,y);c.textBaseline="alphabetic"}
+function buildBG(){
+  const o=document.createElement("canvas");o.width=1800;o.height=1080;const c=o.getContext("2d");c.scale(2,2);const R=mulberry(7);
+  let g=c.createLinearGradient(0,0,900,540);g.addColorStop(0,"#a3a6bc");g.addColorStop(1,"#686c88");c.fillStyle=g;c.fillRect(0,0,900,540);
+  for(let i=0;i<70;i++){const x=R()*900,y=R()*540,r=30+R()*90,gr=c.createRadialGradient(x,y,0,x,y,r);const d=R()<.5;gr.addColorStop(0,d?"rgba(0,0,0,.07)":"rgba(255,255,255,.06)");gr.addColorStop(1,"rgba(0,0,0,0)");c.fillStyle=gr;c.fillRect(x-r,y-r,r*2,r*2)}
+  for(let i=0;i<7000;i++){const x=R()*900,y=R()*540,s=.5+R()*1.1;c.fillStyle=R()<.5?`rgba(255,255,255,${.08+R()*.18})`:`rgba(0,0,0,${.08+R()*.2})`;c.fillRect(x,y,s,s)}
+  [[690,215,28],[875,110,20],[640,500,26],[880,440,22],[640,70,18],[30,525,24],[585,525,20],[10,18,16],[700,500,14]].forEach(([x,y,r])=>{
+    let gr=c.createRadialGradient(x+r*.25,y+r*.25,0,x,y,r);gr.addColorStop(0,"rgba(0,0,0,.5)");gr.addColorStop(.7,"rgba(0,0,0,.18)");gr.addColorStop(1,"rgba(0,0,0,0)");c.fillStyle=gr;c.beginPath();c.arc(x,y,r,0,6.3);c.fill();
+    c.lineWidth=2.5;c.strokeStyle="rgba(255,255,255,.38)";c.beginPath();c.arc(x,y,r,3.4,5.4);c.stroke();c.strokeStyle="rgba(0,0,0,.4)";c.beginPath();c.arc(x,y,r,.3,2.3);c.stroke()});
+  // habitat footprint shadow
+  c.fillStyle="rgba(0,0,0,.4)";c.fillRect(26,38,552,484);
+  // floor plating
+  c.fillStyle="#2b3050";c.fillRect(20,30,550,480);
+  for(let x=30;x<550;x+=30)for(let y=40;y<500;y+=30){c.fillStyle=((x+y)/30)%2?"#2f3558":"#2b3154";c.fillRect(x+1,y+1,28,28);c.fillStyle="rgba(255,255,255,.07)";c.fillRect(x+1,y+1,28,1);c.fillRect(x+1,y+1,1,28);c.fillStyle="rgba(0,0,0,.25)";c.fillRect(x+1,y+28,28,1);c.fillRect(x+28,y+1,1,28);c.fillStyle="rgba(180,190,230,.25)";[[4,4],[25,4],[4,25],[25,25]].forEach(([a,b])=>c.fillRect(x+a,y+b,1.5,1.5))}
+  [[30,40,195,200,"#2a6a9a"],[231,40,164,200,"#8a6a30"],[401,40,149,200,"#4a52c0"],[30,300,195,200,"#7a4a9a"],[231,300,164,200,"#2f8a72"],[401,300,149,200,"#9a4a5a"]].forEach(r=>{c.globalAlpha=.22;c.fillStyle=r[4];c.fillRect(r[0],r[1],r[2],r[3]);c.globalAlpha=1});
+  c.fillStyle="#394070";c.fillRect(38,254,512,32);c.strokeStyle="rgba(251,191,36,.55)";c.setLineDash([10,8]);c.lineWidth=2;c.beginPath();c.moveTo(40,270);c.lineTo(548,270);c.stroke();c.setLineDash([]);
+  const stripes=(x,y,w,h)=>{c.save();c.beginPath();c.rect(x,y,w,h);c.clip();c.fillStyle="#1a1a1a";c.fillRect(x,y,w,h);c.fillStyle="#fbbf24";for(let i=-h;i<w+h;i+=10){c.beginPath();c.moveTo(x+i,y+h);c.lineTo(x+i+5,y+h);c.lineTo(x+i+5+h,y);c.lineTo(x+i+h,y);c.fill()}c.restore()};
+  [[105,254,40],[295,254,40],[455,254,40]].forEach(([x,y,w])=>stripes(x,y,w,3));[[105,283,40],[295,283,40],[445,283,40]].forEach(([x,y,w])=>stripes(x,y,w,3));
+  [[127,140],[310,140],[475,140],[127,400],[310,400],[475,400],[300,270]].forEach(([x,y])=>{const gr=c.createRadialGradient(x,y,0,x,y,110);gr.addColorStop(0,"rgba(255,244,220,.16)");gr.addColorStop(1,"rgba(255,244,220,0)");c.fillStyle=gr;c.fillRect(x-110,y-110,220,220)});
+  c.fillStyle="rgba(180,190,240,.35)";c.font="10px Audiowide,sans-serif";[[38,56,"LIFE SUPPORT"],[239,56,"GALLEY"],[409,56,"SCIENCE LAB"],[38,316,"GYM"],[239,316,"COMMS"],[409,316,"MED BAY & BUNKS"]].forEach(a=>c.fillText(a[2],a[0],a[1]));
+  c.fillStyle="rgba(180,190,240,.4)";c.fillText("CORRIDOR",250,266);
+  // pipes along top wall
+  [["#6ee7b7",44],["#60a5fa",49]].forEach(([col,y])=>{c.strokeStyle=col;c.globalAlpha=.55;c.lineWidth=2.5;c.beginPath();c.moveTo(34,y);c.lineTo(546,y);c.stroke();c.globalAlpha=1});
   // walls
-  c.fillStyle="#6b78b8";SOL.forEach(s=>c.fillRect(s[0],s[1],s[2],s[3]));
-  c.fillStyle="#8a98d8";c.fillRect(20,30,550,10);c.fillRect(20,500,550,10);c.fillRect(20,30,10,480);
+  const wall=(x,y,w,h)=>{c.fillStyle="rgba(0,0,0,.4)";c.fillRect(x+3,y+4,w,h);const gr=c.createLinearGradient(x,y,x+w,y+h);gr.addColorStop(0,"#9aa7e0");gr.addColorStop(1,"#5f6ca6");c.fillStyle=gr;c.fillRect(x,y,w,h);c.fillStyle="rgba(255,255,255,.35)";c.fillRect(x,y,w,1.5)};
+  SOL.forEach(s=>wall(s[0],s[1],s[2],s[3]));wall(20,30,550,10);wall(20,500,550,10);wall(20,30,10,480);
   // airlock
-  c.fillStyle="#454d80";c.fillRect(550,252,56,36);c.fillStyle="#fbbf24";c.fillRect(552,250,4,40);c.fillRect(602,250,4,40);
-  c.fillStyle="#cbd5f5";c.font="10px Audiowide,sans-serif";c.fillText("AIRLOCK",552,248);
-  // outside objects
-  const sh=(x,y,rx,ry)=>{c.fillStyle="rgba(0,0,0,.3)";c.beginPath();c.ellipse(x+10,y+8,rx,ry,0,0,6.3);c.fill()};
-  [690,750,810].forEach(x=>{sh(x+24,90,28,34);c.fillStyle="#1f4fb8";c.fillRect(x,48,48,70);c.strokeStyle="#7aa7ff";c.lineWidth=1;for(let i=1;i<4;i++){c.beginPath();c.moveTo(x,48+i*17.5);c.lineTo(x+48,48+i*17.5);c.stroke()}c.beginPath();c.moveTo(x+24,48);c.lineTo(x+24,118);c.stroke();c.fillStyle="rgba(169,131,79,"+Math.min(.85,S.dust/115).toFixed(2)+")";c.fillRect(x,48,48,70)});
-  sh(700,330,32,22);c.fillStyle="#7a6f60";c.beginPath();c.ellipse(700,330,26+S.armor*5,20+S.armor*3,0,0,6.3);c.fill();c.fillStyle="#948772";for(let i=0;i<3+S.armor*3;i++){c.fillRect(682+(i*11)%36-S.armor*4,320+(i*7)%20,9,6)}
-  sh(830,330,24,18);c.fillStyle="#6b7390";c.fillRect(810,314,40,32);c.fillStyle="#9aa3bf";c.fillRect(814,318,32,6);c.strokeStyle="#cbd0e6";c.lineWidth=3;c.beginPath();c.moveTo(850,330);c.lineTo(868,318);c.stroke();
-  c.fillStyle="#5d6180";[[840,216,9],[858,226,7],[848,238,6],[866,212,5]].forEach(a=>{c.beginPath();c.arc(a[0],a[1],a[2],0,6.3);c.fill()});c.strokeStyle="#ddd";c.lineWidth=2;c.beginPath();c.moveTo(880,250);c.lineTo(880,224);c.stroke();c.fillStyle="#2563eb";c.fillRect(880,224,14,9);
-  sh(760,450,32,32);c.fillStyle="#cfd3e6";c.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4+Math.PI/8;c.lineTo(760+Math.cos(a)*30,450+Math.sin(a)*30)}c.fill();c.fillStyle="#d6a23a";c.beginPath();c.arc(760,450,16,0,6.3);c.fill();c.fillStyle="#60a5fa";c.beginPath();c.arc(760,450,7,0,6.3);c.fill();
-  c.strokeStyle="#cbd0e6";c.lineWidth=3;[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(a=>{c.beginPath();c.moveTo(760+a[0]*24,450+a[1]*24);c.lineTo(760+a[0]*36,450+a[1]*36);c.stroke()});
-  S.crates.forEach((i,k)=>{const x=690+k*24,y=495;c.fillStyle="#a8743a";c.fillRect(x,y,20,16);c.strokeStyle="#6f4a1e";c.strokeRect(x,y,20,16);c.fillStyle="#fbbf24";c.fillRect(x+8,y,4,16)});
-  // inside stations
-  for(const id in STN){const s=STN[id];
-    if(["solar","shelter","isru","field","pad","dustoff","rest"].includes(id)){
-      if(id==="rest"){c.fillStyle="#1e3a6a";c.fillRect(s.x-22,s.y-16,44,32);c.strokeStyle="#6b78b8";c.strokeRect(s.x-22,s.y-16,44,32)}
-      if(id==="dustoff"){c.fillStyle="#5a66a8";c.fillRect(s.x-10,s.y-14,20,28)}
-    }else{c.fillStyle="#394072";c.fillRect(s.x-23,s.y-18,46,36);c.strokeStyle="#6a77c0";c.lineWidth=2;c.strokeRect(s.x-23,s.y-18,46,36)}
-    c.font="22px sans-serif";c.textAlign="center";c.textBaseline="middle";c.fillStyle="#fff";c.fillText(s.icon,s.x,s.y+1);
-    c.font="10px Audiowide,sans-serif";c.fillStyle="#e8ecff";c.textBaseline="alphabetic";
-    const ly=["solar"].includes(id)?s.y+22:["pad"].includes(id)?s.y+48:s.y+32;c.fillText(s.label,s.x,ly);
-    const lc=lampCol(id);if(lc){c.fillStyle=lc;c.beginPath();c.arc(s.x+20,s.y-14,5,0,6.3);c.fill()}
-    c.textAlign="left"}
-  // near highlight
-  if(P.near){const s=STN[P.near];c.strokeStyle="#ffb347";c.lineWidth=2;c.globalAlpha=.6+.4*Math.sin(P.t*6);c.beginPath();c.arc(s.x,s.y,32,0,6.3);c.stroke();c.globalAlpha=1}
-  drawPlayer(c);
-  c.fillStyle="#e8ecff";c.font="11px Audiowide,sans-serif";c.fillText(P.x>=556?"🌑 SURFACE  (suit dust "+Math.round(S.suitDust)+"%)":"🏠 INSIDE HABITAT"+(S.cabinDust>0?"  (cabin dust "+Math.round(S.cabinDust)+"%)":""),8,22);
+  c.fillStyle="#3d4570";c.fillRect(550,250,56,40);stripes(552,252,52,3);stripes(552,285,52,3);
+  c.fillStyle="#fbbf24";c.fillRect(550,246,5,48);c.fillRect(601,246,5,48);
+  c.fillStyle="rgba(180,190,240,.5)";c.font="9px Audiowide,sans-serif";c.fillText("AIRLOCK",554,247);
+  // outer hull edge on right
+  c.fillStyle="#7c88c4";c.fillRect(558,40,2,210);c.fillRect(558,290,2,210);
+  // rocks
+  const R2=mulberry(21);for(let i=0;i<30;i++){const x=610+R2()*280,y=20+R2()*500;if([[700,330],[830,330],[850,225],[760,450],[770,150],[730,85],[640,270],[575,270]].some(p=>Math.hypot(p[0]-x,p[1]-y)<48))continue;ROCKS.push([x,y,2+R2()*5])}
+  const R3=mulberry(5);for(let i=0;i<3;i++){DUSTPTS.push([]);for(let k=0;k<70;k++)DUSTPTS[i].push([R3()*48,R3()*70,1.5+R3()*2.5])}
+  BG=o}
+function drawStn(c,id,s,SD){
+  const x=s.x,y=s.y;
+  const inside=x<552;
+  if(inside){c.fillStyle="rgba(0,0,0,.3)";rr(c,x-24+3,y-20+4,48,40,4);c.fill()}
+  if(id==="o2"){disc(c,x-13,y,11,"#e2e6f0","#7b8396");disc(c,x+13,y,11,"#e2e6f0","#7b8396");c.strokeStyle="#475066";c.lineWidth=1.5;c.beginPath();c.arc(x-13,y,11,0,6.3);c.stroke();c.beginPath();c.arc(x+13,y,11,0,6.3);c.stroke();c.strokeStyle="#6ee7b7";c.lineWidth=3;c.beginPath();c.moveTo(x-13,y-11);c.lineTo(x-13,y-19);c.lineTo(x+13,y-19);c.lineTo(x+13,y-11);c.stroke();disc(c,x,y+14,4,"#fff","#888")}
+  else if(id==="power"){box(c,x-24,y-14,48,28,"#3a3f55","#1c2030");for(let i=0;i<4;i++){box(c,x-21+i*11,y-11,9,22,"#4a5578","#2a3050",1);c.fillStyle=S.res.power>(i*25)?"#4ade80":"#3a3f55";c.fillRect(x-19+i*11,y-8,5,5)}c.strokeStyle="#fbbf24";c.lineWidth=1.5;c.strokeRect(x-24,y-14,48,28)}
+  else if(id==="water"){box(c,x-22,y-16,44,32,"#6bb2ff","#2860b8");c.strokeStyle="rgba(255,255,255,.5)";c.lineWidth=1;for(let i=1;i<4;i++){c.beginPath();c.moveTo(x-20,y-16+i*8);c.lineTo(x+20,y-16+i*8);c.stroke()}disc(c,x+12,y+20,5,"#ccc","#555");c.strokeStyle="#9ca3af";c.lineWidth=3;c.beginPath();c.moveTo(x-22,y);c.lineTo(x-28,y);c.stroke()}
+  else if(id==="food"){box(c,x-24,y-18,48,36,"#9a7650","#5b4326");disc(c,x-10,y-7,6,"#333","#000");disc(c,x+4,y-7,6,"#333","#000");c.strokeStyle="#fb923c";c.lineWidth=1.5;c.beginPath();c.arc(x-10,y-7,4,0,6.3);c.stroke();c.beginPath();c.arc(x+4,y-7,4,0,6.3);c.stroke();c.fillStyle="#2d5a2d";rr(c,x-22,y+3,44,13,2);c.fill();c.fillStyle="#6ee06e";for(let i=0;i<9;i++){c.beginPath();c.arc(x-18+i*4.6,y+9+(i%2)*2,2,0,6.3);c.fill()}}
+  else if(id==="lab"){box(c,x-27,y-17,54,34,"#d3daea","#8e98b4");[[-21,-13],[4,-13]].forEach(([a,b])=>{c.fillStyle="#08254a";c.fillRect(x+a,y+b,17,11);c.strokeStyle="#22d3ee";c.lineWidth=1;c.strokeRect(x+a,y+b,17,11);c.fillStyle="rgba(34,211,238,.5)";c.fillRect(x+a+2,y+b+3,10,1.5);c.fillRect(x+a+2,y+b+6,6,1.5)});disc(c,x-12,y+9,5.5,"#555","#1a1a1a");disc(c,x+6,y+9,3.5,"#4ade80","#14532d");disc(c,x+15,y+9,3.5,"#60a5fa","#1e3a8a")}
+  else if(id==="gym"){box(c,x-17,y-25,34,50,"#323648","#1b1e2b");c.strokeStyle="rgba(255,255,255,.15)";c.lineWidth=1;for(let i=0;i<8;i++){c.beginPath();c.moveTo(x-12,y-14+i*5);c.lineTo(x+12,y-14+i*5);c.stroke()}box(c,x-17,y-25,34,9,"#6b7280","#374151");c.fillStyle="#22d3ee";c.fillRect(x-8,y-23,16,4);c.fillStyle="#9ca3af";c.fillRect(x-20,y-12,3,30);c.fillRect(x+17,y-12,3,30)}
+  else if(id==="comms"){box(c,x-27,y-15,54,30,"#44566e","#27323f");[-20,-4,12].forEach((a,i)=>{c.fillStyle="#06231e";c.fillRect(x+a,y-12,13,10);c.strokeStyle=i===1?"#fbbf24":"#34d399";c.strokeRect(x+a,y-12,13,10)});disc(c,x,y+23,8,"#555","#111");c.fillStyle="#9ca3af";c.fillRect(x-20,y+4,40,3)}
+  else if(id==="med"){box(c,x-18,y-24,36,48,"#f4f6ff","#c3cbe6");box(c,x-14,y-21,28,12,"#fff","#dde2f5");c.fillStyle="#ef4444";c.fillRect(x-3,y-2,6,16);c.fillRect(x-8,y+3,16,6);c.fillStyle="#0a2a2a";c.fillRect(x+20,y-14,9,12);c.strokeStyle="#34d399";c.beginPath();c.moveTo(x+21,y-8);c.lineTo(x+24,y-12);c.lineTo(x+26,y-5);c.lineTo(x+28,y-8);c.stroke()}
+  else if(id==="bunk"){box(c,x-18,y-23,36,46,"#7d8bb8","#4a5584");box(c,x-14,y-20,28,12,"#fff","#d8dcec");box(c,x-14,y-6,28,26,"#3b6fd8","#24459a");c.strokeStyle="rgba(255,255,255,.3)";c.beginPath();c.moveTo(x-14,y+2);c.lineTo(x+14,y+2);c.stroke()}
+  else if(id==="rest"){box(c,x-24,y-18,48,36,"#181e3c","#0c1128");disc(c,x,y,12,"#bfe0ff","#1e4fa8");c.fillStyle="rgba(74,222,128,.7)";c.beginPath();c.ellipse(x-3,y-2,4,3,.5,0,6.3);c.fill();c.fillStyle="#fff";[[x-18,y-12],[x+16,y+10],[x+14,y-12],[x-16,y+11]].forEach(p=>c.fillRect(p[0],p[1],1.5,1.5));c.strokeStyle="#6b78b8";c.lineWidth=2;c.strokeRect(x-24,y-18,48,36)}
+  else if(id==="dustoff"){box(c,x-12,y-17,24,34,"#262b3f","#14172a");c.strokeStyle="#6b78b8";c.lineWidth=1;for(let i=0;i<7;i++){c.beginPath();c.moveTo(x-10,y-14+i*4.6);c.lineTo(x+10,y-14+i*4.6);c.stroke()}c.fillStyle="#d97706";c.fillRect(x-12,y-2,24,4);led(c,x,y-20,S.suitDust>30?"#f87171":"#4ade80")}
+  else if(id==="solar"){/* panels drawn elsewhere */}
+  else if(id==="shelter"){const w=26+S.armor*5,h=20+S.armor*3;c.fillStyle="rgba(0,0,0,.42)";c.beginPath();c.ellipse(x+SD.x,y+SD.y,w,h,0,0,6.3);c.fill();disc(c,x,y,w,"#a69880","#6e6350");c.save();c.beginPath();c.ellipse(x,y,w,h,0,0,6.3);c.clip();c.fillStyle="#948772";c.strokeStyle="rgba(0,0,0,.35)";const n=4+S.armor*3;for(let i=0;i<n;i++){const bx=x-w+8+(i%4)*(w/2),by=y-h+6+Math.floor(i/4)*9;rr(c,bx,by,13,7,2);c.fill();c.stroke()}c.restore()}
+  else if(id==="isru"){c.fillStyle="rgba(0,0,0,.4)";rr(c,x-20+SD.x,y-16+SD.y,40,32,3);c.fill();box(c,x-20,y-16,40,32,"#8b94ae","#59627c");disc(c,x-7,y,9,"#d6dae8","#6b7390");c.strokeStyle="#333";c.lineWidth=1.5;for(let i=0;i<3;i++){const a=P.t*3+i*2.09;c.beginPath();c.moveTo(x-7,y);c.lineTo(x-7+Math.cos(a)*8,y+Math.sin(a)*8);c.stroke()}c.fillStyle="#fbbf24";c.fillRect(x+6,y-12,10,6);c.strokeStyle="#cbd0e6";c.lineWidth=3;c.beginPath();c.moveTo(x+20,y+2);c.lineTo(x+34,y-10);c.stroke()}
+  else if(id==="field"){c.strokeStyle="rgba(0,0,0,.45)";c.lineWidth=2.5;[[-12,12],[12,12],[0,-14]].forEach(a=>{c.beginPath();c.moveTo(x,y);c.lineTo(x+a[0]+SD.x*.5,y+a[1]+SD.y*.5);c.stroke()});c.strokeStyle="#cbd0e6";c.lineWidth=2;[[-12,12],[12,12],[0,-14]].forEach(a=>{c.beginPath();c.moveTo(x,y);c.lineTo(x+a[0],y+a[1]);c.stroke()});box(c,x-6,y-6,12,12,"#e5e7eb","#9aa3bf");disc(c,x,y,3,"#22d3ee","#0e7490");[[-26,14,8],[22,-12,7],[-20,-16,5],[26,16,6]].forEach(a=>{c.fillStyle="rgba(0,0,0,.4)";c.beginPath();c.ellipse(a[0]+x+SD.x*.4,a[1]+y+SD.y*.4,a[2],a[2]*.8,0,0,6.3);c.fill();disc(c,x+a[0],y+a[1],a[2],"#c3c6d6","#5d6180")});c.strokeStyle="#ddd";c.lineWidth=2;c.beginPath();c.moveTo(x+32,y+22);c.lineTo(x+32,y-6);c.stroke();c.fillStyle="#2563eb";c.fillRect(x+32,y-6,14,9);c.fillStyle="#fff";c.fillRect(x+32,y-3,14,2)}
+  else if(id==="pad"){disc(c,x,y,50,"rgba(0,0,0,.28)","rgba(0,0,0,0)");[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(a=>{c.strokeStyle="rgba(0,0,0,.4)";c.lineWidth=3;c.beginPath();c.moveTo(x+a[0]*20+SD.x*.6,y+a[1]*20+SD.y*.6);c.lineTo(x+a[0]*38+SD.x*.9,y+a[1]*38+SD.y*.9);c.stroke();c.strokeStyle="#cbd0e6";c.lineWidth=3;c.beginPath();c.moveTo(x+a[0]*20,y+a[1]*20);c.lineTo(x+a[0]*38,y+a[1]*38);c.stroke();disc(c,x+a[0]*38,y+a[1]*38,4,"#ddd","#777")});c.fillStyle="rgba(0,0,0,.4)";c.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4+Math.PI/8;c.lineTo(x+SD.x+Math.cos(a)*30,y+SD.y+Math.sin(a)*30)}c.fill();let gr=c.createRadialGradient(x-8,y-8,2,x,y,30);gr.addColorStop(0,"#f1f3fa");gr.addColorStop(1,"#9aa0b8");c.fillStyle=gr;c.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4+Math.PI/8;c.lineTo(x+Math.cos(a)*30,y+Math.sin(a)*30)}c.closePath();c.fill();c.strokeStyle="#6b7390";c.lineWidth=1.5;c.stroke();disc(c,x,y,14,"#e2b04a","#8a5f10");disc(c,x,y,6,"#8ec5ff","#1e4fa8");c.fillStyle="#fff";c.font="7px Audiowide,sans-serif";c.textAlign="center";c.fillText("OUTPOST 7",x,y+24);c.textAlign="left"}
 }
-function drawPlayer(c){
-  const out=P.x>=556,bob=P.moving?Math.abs(Math.sin(P.t*9))*(out?4:3):0,x=P.x,y=P.y-bob,ang=Math.atan2(P.fy,P.fx);
-  c.fillStyle="rgba(0,0,0,.35)";c.beginPath();c.ellipse(x+6,P.y+7,11,5,0,0,6.3);c.fill();
-  if(out){c.fillStyle="#d6dae8";c.save();c.translate(x,y);c.rotate(ang+Math.PI);c.fillRect(2,-7,9,14);c.restore()}
-  c.fillStyle=out?"#f5f6fb":"#4aa8ff";c.beginPath();c.arc(x,y,out?11:9,0,6.3);c.fill();c.strokeStyle=out?"#aab":"#2b6fb0";c.lineWidth=1.5;c.stroke();
-  c.fillStyle=out?"#e5e7eb":"#f2d2b0";c.beginPath();c.arc(x+Math.cos(ang)*3,y+Math.sin(ang)*3,6,0,6.3);c.fill();
-  if(out){c.fillStyle="#1b2236";c.beginPath();c.ellipse(x+Math.cos(ang)*5,y+Math.sin(ang)*5,3.5,2.6,ang,0,6.3);c.fill()}
+function draw(){
+  const cv=$("#wc");if(!cv)return;const c=cv.getContext("2d");c.setTransform(2,0,0,2,0,0);
+  if(!BG)buildBG();c.clearRect(0,0,900,540);c.drawImage(BG,0,0,900,540);
+  const pr=dayProg(),L=.55+Math.abs(pr-.5)*1.7,SD={x:(.5-pr)*52*L+ (pr===.5?0:0),y:7*L};
+  // rocks
+  ROCKS.forEach(r=>{c.fillStyle="rgba(0,0,0,.42)";c.beginPath();c.ellipse(r[0]+SD.x*r[2]/6,r[1]+SD.y*r[2]/6,r[2]*1.1,r[2]*.8,0,0,6.3);c.fill();disc(c,r[0],r[1],r[2],"#c8cad9","#5a5d74")});
+  c.fillStyle="rgba(255,255,255,.14)";P.trail.forEach(t=>{c.beginPath();c.ellipse(t.x,t.y,3.2,1.9,0,0,6.3);c.fill();c.fillStyle="rgba(0,0,0,.12)";c.beginPath();c.ellipse(t.x+1,t.y+1,3.2,1.9,0,0,6.3);c.fill();c.fillStyle="rgba(255,255,255,.14)"});
+  // solar panels
+  [690,750,810].forEach((x,k)=>{c.fillStyle="rgba(0,0,0,.42)";c.beginPath();c.moveTo(x,118);c.lineTo(x+48,118);c.lineTo(x+48+SD.x*2,118+SD.y*3);c.lineTo(x+SD.x*2,118+SD.y*3);c.fill();c.fillStyle="#0e1d3d";c.fillRect(x-2,46,52,74);const gr=c.createLinearGradient(x,48,x+48,118);gr.addColorStop(0,"#2f6bd8");gr.addColorStop(1,"#173d96");c.fillStyle=gr;c.fillRect(x,48,48,70);c.strokeStyle="rgba(190,215,255,.55)";c.lineWidth=.7;for(let i=1;i<5;i++){c.beginPath();c.moveTo(x,48+i*14);c.lineTo(x+48,48+i*14);c.stroke()}for(let i=1;i<4;i++){c.beginPath();c.moveTo(x+i*12,48);c.lineTo(x+i*12,118);c.stroke()}
+    c.fillStyle="rgba(255,255,255,.14)";c.beginPath();c.moveTo(x,48);c.lineTo(x+22,48);c.lineTo(x,76);c.fill();
+    c.fillStyle="rgba(176,142,92,"+Math.min(.5,S.dust/180).toFixed(2)+")";c.fillRect(x,48,48,70);const n=Math.round(S.dust*.7);c.fillStyle="rgba(196,166,118,.7)";for(let i=0;i<n&&i<70;i++){const d=DUSTPTS[k][i];c.beginPath();c.arc(x+d[0],48+d[1],d[2],0,6.3);c.fill()}});
+  // stations
+  for(const id in STN)drawStn(c,id,STN[id],SD);
+  // crates
+  S.crates.forEach((i,k)=>{const x=692+k*26,y=492;c.fillStyle="rgba(0,0,0,.4)";c.fillRect(x+SD.x*.4,y+SD.y*.5,22,18);box(c,x,y,22,18,"#c08a4a","#7a4f1c",2);c.fillStyle="#fbbf24";c.fillRect(x+9,y,4,18);c.strokeStyle="rgba(0,0,0,.3)";c.beginPath();c.moveTo(x,y+9);c.lineTo(x+22,y+9);c.stroke()});
+  // plates and lamps
+  for(const id in STN){const s=STN[id];const ly=id==="solar"?s.y+24:id==="pad"?s.y+52:id==="shelter"?s.y+36:id==="field"?s.y+34:s.y+30;plate(c,s.x,ly,s.label);const lc=lampCol(id);if(lc)led(c,s.x+(id==="solar"?20:22),s.y-(id==="solar"?10:19),lc)}
+  if(P.near){const s=STN[P.near];c.strokeStyle="#ffb347";c.lineWidth=2;c.globalAlpha=.55+.45*Math.sin(P.t*6);c.beginPath();c.arc(s.x,s.y,34,0,6.3);c.stroke();c.globalAlpha=1}
+  // dust puffs
+  PART.forEach(p=>{c.fillStyle=`rgba(210,205,195,${(p.l*.5).toFixed(2)})`;c.beginPath();c.arc(p.x,p.y,3+(1-p.l)*5,0,6.3);c.fill()});
+  drawPlayer(c,SD);
+  // lighting
+  c.fillStyle=`rgba(255,140,60,${(Math.pow(pr,3)*.16).toFixed(3)})`;c.fillRect(556,0,344,540);
+  if(S.res.power<25&&Math.sin(P.t*17)>.75){c.fillStyle="rgba(0,0,10,.28)";c.fillRect(20,30,540,480)}
+  const vg=c.createRadialGradient(450,270,260,450,270,560);vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(1,"rgba(0,0,0,.4)");c.fillStyle=vg;c.fillRect(0,0,900,540);
+  plateL(c,8,16,(P.x>=556?"SURFACE · suit dust "+Math.round(S.suitDust)+"%":"HABITAT"+(S.cabinDust>0?" · cabin dust "+Math.round(S.cabinDust)+"%":""))+"   "+clock());
 }
-function renderBase(){return `<div class="play"><div class="stage"><canvas id="wc" width="900" height="540" aria-label="Outpost 7 map"></canvas><div id="pop" class="pop" hidden></div>
-  <div class="ctrl"><div class="dpad"><button id="dU" aria-label="up">▲</button><button id="dL" aria-label="left">◀</button><button id="dD" aria-label="down">▼</button><button id="dR" aria-label="right">▶</button></div><span class="small muted">WASD / arrows to walk · E to use · tap the map to walk</span><button id="useBtn" class="primary" onclick="useNear()">Walk to a station</button></div></div><aside class="side" id="side"></aside></div>`}
+function drawPlayer(c,SD){
+  const out=P.x>=556,mv=P.moving,ph=P.t*(out?7:10),bob=mv?Math.abs(Math.sin(ph))*(out?4.5:3):0,x=P.x,y=P.y-bob,ang=Math.atan2(P.fy,P.fx),px=-Math.sin(ang),py=Math.cos(ang);
+  c.fillStyle="rgba(0,0,0,"+(out?.45:.3)+")";c.beginPath();c.ellipse(x+SD.x*(out?.55:.2),P.y+5+SD.y*.5*(out?1:.3),out?13:10,5,0,0,6.3);c.fill();
+  const sw=mv?Math.sin(ph)*5:0;
+  // legs
+  c.fillStyle=out?"#dfe3ee":"#2b6fb0";c.beginPath();c.ellipse(x+px*4+Math.cos(ang)*sw,y+py*4+Math.sin(ang)*sw,3.6,3.6,0,0,6.3);c.fill();c.beginPath();c.ellipse(x-px*4-Math.cos(ang)*sw,y-py*4-Math.sin(ang)*sw,3.6,3.6,0,0,6.3);c.fill();
+  // backpack
+  if(out){c.save();c.translate(x,y);c.rotate(ang+Math.PI);box(c,2,-8,10,16,"#e9ebf3","#a4a9bd",3);c.fillStyle="#38bdf8";c.fillRect(5,-3,3,6);c.restore()}
+  // torso + arms
+  disc(c,x,y,out?11:9,out?"#ffffff":"#5ab4ff",out?"#aeb4c8":"#2b6fb0");
+  c.fillStyle=out?"#e6e9f2":"#4aa0f0";c.beginPath();c.arc(x+px*11-Math.cos(ang)*sw*.6,y+py*11-Math.sin(ang)*sw*.6,3,0,6.3);c.fill();c.beginPath();c.arc(x-px*11+Math.cos(ang)*sw*.6,y-py*11+Math.sin(ang)*sw*.6,3,0,6.3);c.fill();
+  // head / helmet
+  const hx=x+Math.cos(ang)*3,hy=y+Math.sin(ang)*3;
+  if(out){disc(c,hx,hy,7,"#ffffff","#b8bdd0");c.save();c.translate(hx,hy);c.rotate(ang);const g=c.createLinearGradient(2,-4,7,4);g.addColorStop(0,"#f5c451");g.addColorStop(1,"#8a5a10");c.fillStyle=g;c.beginPath();c.ellipse(3.5,0,3.6,4.6,0,0,6.3);c.fill();c.fillStyle="rgba(255,255,255,.55)";c.beginPath();c.ellipse(2.5,-2,1.3,1.8,0,0,6.3);c.fill();c.restore()}
+  else{disc(c,hx,hy,6,"#f6d9b8","#c9966a");c.fillStyle="#3b2a1a";c.beginPath();c.arc(hx-Math.cos(ang)*1.5,hy-Math.sin(ang)*1.5,5.5,Math.PI*.2+ang+Math.PI*.5,Math.PI*1.8+ang+Math.PI*.5);c.fill()}
+}
+function renderBase(){return `<div class="play"><div class="stage"><canvas id="wc" width="1800" height="1080" aria-label="Outpost 7 map"></canvas><div id="pop" class="pop" hidden></div>
+  <div class="ctrl"><div class="dpad"><button id="dU" aria-label="up">▲</button><button id="dL" aria-label="left">◀</button><button id="dD" aria-label="down">▼</button><button id="dR" aria-label="right">▶</button></div><span class="small muted">WASD / arrows to walk · E to use · tap the map to walk</span><button id="useBtn" class="primary" onclick="useNear()">Walk to a station</button><button class="sm" onclick="document.body.classList.toggle('nosb');">◧ Sidebar</button></div></div><aside class="side" id="side"></aside></div>`}
 function initWorld(){
   const cv=$("#wc");
   cv.addEventListener("pointerdown",e=>{if(POP)return;const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*900,y=(e.clientY-r.top)/r.height*540;
@@ -522,8 +584,8 @@ function renderSide(){
   if(TAB==="chores")body=CH.map(c=>{const maxed=c.max&&S.armor>=c.max;const fx=Object.entries(c.fx).filter(([k])=>k!=="armor"&&k!=="dust").map(([k,v])=>RIC[k]+(v>0?"+":"")+v).join(" ");return `<button class="opt" ${S.energy<c.e||maxed?"disabled":""} onclick="goChore('${c.id}')">${c.icon} ${esc(c.n)} <span class="small muted">⚡${c.e} ${fx}${c.id==="dust"?" 🧹":""}${c.id==="shelter"?" 🛡️+1":""}</span><span class="ctx">${OUTCH[c.id]?"🌑 Outside · ":"🏠 Inside · "}${esc(c.ctx)}</span></button>`}).join("");
   else if(TAB==="science")body=`<p class="small muted">Walk to the lab (inside) or field site (outside). Tasks use energy and power. Points depend on complexity, price and value. More unlock on days 3 and 5.</p>`+ACT.map((a,i)=>{const dn=S.done[i],lock=unlockDay(a)>S.day,pc=Math.ceil(a[2]/4),dis=dn||lock||S.energy<a[1];return `<button class="opt" style="opacity:${dn?.55:1}" ${dis?"disabled":""} onclick="goSci(${i})"><b>${esc(a[0])}</b> <span class="tag">${isOutSci(a)?"🌑 field":"🔬 lab"}</span><span class="tag">⚡${a[1]}</span><span class="tag">power -${pc}</span><span class="tag good">+${actPts(a)} SP</span>${lock?`<span class="tag">unlocks day ${unlockDay(a)}</span>`:""}${dn?`<span class="ctx">${esc(a[5])}</span>`:""}</button>`}).join("");
   else if(TAB==="supplies")body=`<p class="small muted">Order a crate from Mission Control with Science Points. It lands on the pad outside. You have <b>${S.sp} SP</b>.</p>`+SUP.map((s,i)=>`<button class="opt" ${S.sp<s.cost&&!free?"disabled":""} onclick="buySup(${i})">${esc(s.n)} <span class="tag">${free?"free":s.cost+" SP"}</span><span class="ctx">${esc(s.ctx)}</span></button>`).join("")+(S.crates.length?`<p class="small"><b>Crates waiting on the pad:</b></p>`+S.crates.map((i,k)=>`<button class="opt" onclick="goCrate(${k})">📦 ${esc(SUP[i].n)} <span class="ctx">Walk to the landing pad and open it.</span></button>`).join(""):"")+`<button class="opt" ${S.energy<1?"disabled":""} onclick="goQuiz()">❓ Mission Control quiz <span class="tag">⚡1</span><span class="ctx">Walk to the comms console and answer questions for Science Points.</span></button>`;
-  else{const dr=MD().dr,gen=Math.round(36*(1-S.dust/100)),use=Math.round(8*dr);body=`<div class="small"><p><b>Tonight's forecast</b></p><p>☀️ Solar today: +${gen} power, base use −${use}. Panels ${S.dust}% dusty.</p><p>🌙 Night uses about 🫧 −${Math.round(7*dr)} 💧 −${Math.round(6*dr)} 🍲 −${Math.round(5*dr)} ⚡ −${Math.round(26*dr)}.</p><p>🛡️ Shelter armor: ${S.armor}/3 · 🧤 Suit dust: ${Math.round(S.suitDust)}% · Cabin dust: ${Math.round(S.cabinDust)}%</p><p>🌙 Nights survived: ${S.day-1} of 7 · ⭐ ${S.sp} SP</p><p class="muted">The Six Lost Outposts: dead by CO₂, dust storm, solar flare, meteorite, cold and despair. Do not be number seven.</p></div>`+(free?`<button class="sm" onclick="S.res={o2:100,water:100,food:100,power:100,health:100,morale:100};S.dust=0;S.cabinDust=0;save();refresh()">🧪 Refill all</button>`:"")+(S.log.length?`<div class="log" style="margin-top:8px">${S.log.map(l=>`<p>${esc(l)}</p>`).join("")}</div>`:"")}
-  el.innerHTML=`<div class="row spread"><b>🌑 Day ${S.day} of 7</b><span class="chip">⚡ Energy ${S.energy}</span></div><div class="grid2">${RES.map(r=>`<div>${barH(r[1]+" "+r[2],S.res[r[0]],100)}</div>`).join("")}</div>${tip()}<div class="row tabsrow">${tabs.map(t=>`<button class="sm ${TAB===t[0]?"primary":""}" onclick="TAB='${t[0]}';renderSide()">${t[1]}</button>`).join("")}</div><div class="sidelist">${body}</div><button class="primary" style="width:100%;margin-top:8px" onclick="goBed()">🛏️ Go to bed (end day)</button>`;
+  else{const dr=MD().dr,gen=Math.round(DAY.gen*(1-S.dust/100)),use=Math.round(DAY.use*dr);body=`<div class="small"><p><b>Tonight's forecast</b></p><p>☀️ Solar today: +${gen} power, base use −${use}. Panels ${S.dust}% dusty.</p><p>🌙 Day and night together use about 🫧 −${Math.round((DAY.o2+NIGHT.o2)*dr)} 💧 −${Math.round((DAY.water+NIGHT.water)*dr)} 🍲 −${Math.round((DAY.food+NIGHT.food)*dr)}, and the night heaters use ⚡ −${Math.round(NIGHT.power*dr)}.</p><p>🛡️ Shelter armor: ${S.armor}/3 · 🧤 Suit dust: ${Math.round(S.suitDust)}% · Cabin dust: ${Math.round(S.cabinDust)}%</p><p>🌙 Nights survived: ${S.day-1} of 7 · ⭐ ${S.sp} SP</p><p class="muted">The Six Lost Outposts: dead by CO₂, dust storm, solar flare, meteorite, cold and despair. Do not be number seven.</p></div>`+(free?`<button class="sm" onclick="S.res={o2:100,water:100,food:100,power:100,health:100,morale:100};S.dust=0;S.cabinDust=0;save();refresh()">🧪 Refill all</button>`:"")+(S.log.length?`<div class="log" style="margin-top:8px">${S.log.map(l=>`<p>${esc(l)}</p>`).join("")}</div>`:"")}
+  el.innerHTML=`<div class="row spread"><b>🌑 Day ${S.day} of 7</b><span class="chip">🕒 ${clock()}</span><span class="chip">⚡ ${S.energy}h left</span></div><div class="grid2">${RES.map(r=>`<div>${barH(r[1]+" "+r[2],S.res[r[0]],100)}</div>`).join("")}</div>${tip()}<div class="row tabsrow">${tabs.map(t=>`<button class="sm ${TAB===t[0]?"primary":""}" onclick="TAB='${t[0]}';renderSide()">${t[1]}</button>`).join("")}</div><div class="sidelist">${body}</div><button class="primary" style="width:100%;margin-top:8px" onclick="goBed()">🛏️ Go to bed (end day)</button>`;
 }
 function doChore(id){const c=CH.find(x=>x.id===id);if(S.energy<c.e){toast("Not enough energy. Go to bed to end the day.");return}S.energy-=c.e;let t=applyFx(c.fx,0);if(OUTCH[id]){S.res.o2=clamp(S.res.o2-3);S.suitDust=clamp(S.suitDust+25);t+="  🫧 -3 (suit)"}log(c.icon+" "+c.n+(t?" → "+t:""));toast(c.fact);save();refresh()}
 function doSci(i){const a=ACT[i],pc=Math.ceil(a[2]/4);if(S.done[i]||S.energy<a[1])return;S.energy-=a[1];S.res.power=clamp(S.res.power-pc);S.res.morale=clamp(S.res.morale+2);if(isOutSci(a)){S.res.o2=clamp(S.res.o2-3);S.suitDust=clamp(S.suitDust+25)}S.done[i]=1;const pts=actPts(a);S.sp+=pts;log("🔬 "+a[0]+" → +"+pts+" SP");toast("+"+pts+" SP: "+a[5]);save();refresh()}
@@ -531,10 +593,10 @@ function buySup(i){const s=SUP[i],free=MD().free;if(!free&&S.sp<s.cost)return;if
 
 function endDay(){
   P.path=[];P.pending=null;closePop();
-  const dr=MD().dr,r=S.res,gen=Math.round(36*(1-S.dust/100)),use=Math.round(8*dr);
-  r.o2-=Math.round(7*dr);r.water-=Math.round(6*dr);r.food-=Math.round(5*dr);r.power+=gen-use;r.health-=Math.round(2*dr);r.morale-=2;
+  const dr=MD().dr,r=S.res,gen=Math.round(DAY.gen*(1-S.dust/100)),use=Math.round(DAY.use*dr);
+  r.o2-=Math.round(DAY.o2*dr);r.water-=Math.round(DAY.water*dr);r.food-=Math.round(DAY.food*dr);r.power+=gen-use;r.health-=Math.round(DAY.health*dr);r.morale-=DAY.morale;
   log("☀️ Day "+S.day+" ends: solar gave +"+gen+" power ("+S.dust+"% dust) minus "+use+" used.");
-  S.dust=clamp(S.dust+12);clampRes();
+  S.dust=clamp(S.dust+DAY.dust);clampRes();
   const pool=EV.filter(e=>!S.seen.includes(e.id));const list=pool.length?pool:EV;
   const e=list[Math.floor(rnd()*list.length)];S.seen=pool.length?S.seen.concat(e.id):[e.id];
   S.ev={id:e.id,chosen:null,fx:""};S.phase="event";save();go("event")}
@@ -549,9 +611,9 @@ function chooseOpt(i){const e=EV.find(x=>x.id===S.ev.id),o=e.opts[i];S.ev.chosen
 function toNight(){resolveNight();S.phase=S.over?"end":"night";save();go("night")}
 function resolveNight(){
   const m=MD(),dr=m.dr,r=S.res,L=[];
-  const d={o2:Math.round(7*dr),water:Math.round(6*dr),food:Math.round(5*dr),power:Math.round(26*dr)};
-  r.o2-=d.o2;r.water-=d.water;r.food-=d.food;r.power-=d.power;r.morale-=3;
-  L.push(`Night uses: 🫧 -${d.o2}  💧 -${d.water}  🍲 -${d.food}  ⚡ -${d.power} (heaters)  🙂 -3`);
+  const d={o2:Math.round(NIGHT.o2*dr),water:Math.round(NIGHT.water*dr),food:Math.round(NIGHT.food*dr),power:Math.round(NIGHT.power*dr)};
+  r.o2-=d.o2;r.water-=d.water;r.food-=d.food;r.power-=d.power;r.morale-=NIGHT.morale;
+  L.push(`Night uses: 🫧 -${d.o2}  💧 -${d.water}  🍲 -${d.food}  ⚡ -${d.power} (heaters)  🙂 -${NIGHT.morale}`);
   let cause=null;
   if(S.cabinDust>0){const h=Math.round(S.cabinDust/15*m.sev);if(h>0){r.health-=h;L.push('🧤 Moon dust inside the cabin irritated your lungs: health -'+h)}S.cabinDust=0}
   if(r.power<0){r.power=0;r.health-=30;L.push("❄️ Power ran out and the heaters switched off. The habitat froze: health -30.");cause="power"}
@@ -563,7 +625,7 @@ function resolveNight(){
   if(m.free){S.over=null;for(const k in r)r[k]=Math.max(r[k],k==="health"?10:5)}
   clampRes();
   if(!S.over){if(S.day>=7){S.over={win:true};S.sp+=50;L.push("🌅 Dawn on night 7. You survived! +50 SP")}
-    else{S.day++;const lowM=r.morale<25?1:0;S.energy=Math.max(2,m.en-S.penalty-lowM);if(lowM)L.push("😞 Low morale: 1 less energy tomorrow.");if(S.penalty)L.push("🔧 Repairs from the event: -"+S.penalty+" energy tomorrow.");S.penalty=0}}
+    else{S.day++;const lowM=r.morale<25?2:0;S.energy=Math.max(2,m.en-S.penalty-lowM);if(lowM)L.push("😞 Low morale: 2 fewer hours of energy tomorrow.");if(S.penalty)L.push("🔧 Repairs from the event: -"+S.penalty+" energy tomorrow.");S.penalty=0}}
   S.report=L;log("🌙 Night "+(S.over&&!S.over.win?S.day:S.day-(S.over?0:1))+" complete.")}
 function renderNight(){
   return `<div class="card"><h2>🌙 Night ${S.day-1} report</h2>${baseScene(true)}<div class="log" style="max-height:none">${S.report.map(l=>`<p>${esc(l)}</p>`).join("")}</div></div><div class="card">${resBars()}<button class="primary" onclick="startDay()">☀️ Start Day ${S.day} →</button></div>`}
