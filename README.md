@@ -9,6 +9,8 @@ Pick a destination (Moon, Mars, or Europa), manage oxygen, water, food, power, h
 Open `outpost-7.html` in any browser. Six lunar outposts were lost within their first week. You command the seventh: **survive 7 nights and bring home rock samples**.
 
 - Land the outpost (soft landing keeps all supplies safe), then play 7 day and night cycles.
+- **Open world:** the Moon is a large map (about 9 screens) you can explore anywhere on, with a camera that follows you and a minimap. Walking outside costs time (energy hours) and suit oxygen. Landmarks to find: the wrecks of Outposts 1 to 6 (search them for logs and salvage), four distant rock sample sites, a shadowed ice crater and a lava tube cave.
+- **Modules:** spend Science Points on module kits (solar extension, greenhouse, water extractor, air scrubber, radiation shelter, rec room, medical annex, observatory). Kits land on the pad; pick one up, carry it anywhere outside and press B to build it. Each module helps every day.
 - Walk your astronaut around a top-down 2D base (WASD or arrows, E to use, or tap the map). Inside: oxygen scrubbers, water recycler, galley, gym, comms console, med bay, science lab, bunk. Outside: solar array, regolith pile, oxygen maker, field site, landing pad.
 - Moon realism, kept light: suited walking is slower, outside work costs suit oxygen, moon dust sticks to your suit and hurts your lungs if you carry it in (brush off at the airlock), and supply crates land on the pad.
 - Long days (10 to 18 hours of energy depending on mode) with a live clock; the sun's shadows move across the textured moon surface as the day passes.
