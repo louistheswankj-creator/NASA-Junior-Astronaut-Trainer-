@@ -115,9 +115,10 @@ body.wide main{max-width:none;padding:6px 8px}body.nosb .side{display:none}body.
 html{background:#070b1f}
 :root{--surf:#111a3d;--grid:#2b3a78;--muted2:#9aa8d8;--ref:#c3c2b7;--ink:#eaf0ff;--ink2:#c3c2b7}
 header{position:relative}
-.hudcard{position:sticky;top:0;z-index:6;background:rgba(7,11,31,.97);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin:8px 0}
-.hudcard .hbars{grid-template-columns:repeat(7,minmax(0,1fr));max-width:none}
+.hudcard{position:static;z-index:6;background:rgba(7,11,31,.97);border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin:8px 0}
+.hudcard .hbars{grid-template-columns:repeat(4,minmax(0,1fr));max-width:none}
 .hudcard .hb{background:rgba(26,38,86,.6)}
+@media(min-width:900px){.hudcard{position:sticky;top:0}}
 .modalbg{position:fixed;inset:0;background:rgba(0,0,0,.66);display:flex;align-items:center;justify-content:center;z-index:50;padding:12px}
 .modalbg[hidden]{display:none}
 .modalbox{background:var(--panel);border:2px solid var(--accent);border-radius:14px;padding:16px;max-width:580px;max-height:88vh;overflow:auto}
@@ -139,12 +140,30 @@ details summary{cursor:pointer;margin:6px 0;color:var(--muted)}
 .msec{border-bottom:1px solid var(--line);padding:4px 0}
 .msec summary{font-size:1rem;color:var(--text)}
 .msec table{margin:8px 0}
+.counters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:8px 0}
+.cnt{background:rgba(26,38,86,.7);border:1px solid var(--line);border-radius:12px;padding:6px 10px;text-align:center}
+.cnt .cn{font-size:.75rem;color:var(--muted)}
+.cnt .cv{font-size:1.9rem;line-height:1.15;color:#fff}
+.cnt .cv span{font-size:.75rem;color:var(--muted);margin-left:4px}
+.cnt .cd{font-size:.7rem;color:var(--muted)}
+.cnt.warn{border-color:#fbbf24}.cnt.danger{border-color:#f87171}.cnt.danger .cv{color:#fecaca}
+.cnt.sp{border-color:var(--accent)}.cnt.sp .cv{color:var(--accent)}
+.drama-wrap{min-height:calc(100vh - 80px);justify-content:center;position:relative}
+.dramatext{max-width:760px;margin:0 auto;padding:10px;text-align:center;font-family:Audiowide,"Times New Roman",serif}
+.dline{font-size:clamp(1.15rem,3.2vw,1.9rem);line-height:1.6;margin:0 0 22px;color:#fff;text-shadow:0 0 18px rgba(96,165,250,.55);min-height:1.6em}
+.dline:first-child{font-size:clamp(1.5rem,4.4vw,2.6rem);color:#ffb347;text-shadow:0 0 22px rgba(255,179,71,.6)}
+.caret{display:inline-block;width:.55em;height:1em;background:#fff;margin-left:3px;vertical-align:-.12em;animation:blink .8s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.dramabtn{margin-top:10px;text-align:center}
+.dskip{position:absolute;top:8px;right:8px}
+@media(prefers-reduced-motion:reduce){.caret{animation:none}}
+@media(max-width:700px){.counters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .livecv{width:100%;max-width:none;display:block;border-radius:8px;margin:6px 0;border:0}
 .livedot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;margin-right:6px;animation:lp 1.2s ease-in-out infinite}
 @keyframes lp{0%,100%{opacity:.35}50%{opacity:1}}
 @media(prefers-reduced-motion:reduce){.livedot{animation:none}}
 .msec ul,.msec ol{padding-left:20px;margin:6px 0}
-@media(max-width:700px){.hudcard .hbars{grid-template-columns:repeat(4,minmax(0,1fr))}.hbar{grid-template-columns:100px 1fr 60px}}
+@media(max-width:700px){.hudcard .hbars{grid-template-columns:repeat(2,minmax(0,1fr))}.hbar{grid-template-columns:100px 1fr 60px}}
 </style>
 </head>
 <body>
@@ -206,58 +225,66 @@ const surfaceTemp=()=>isDark(S.day)?-173:Math.round(-40+167*Math.sin(Math.PI*cla
 const dayProg=()=>clamp(1-S.energy/MD().en,0,1);
 function clock(){const h=7+dayProg()*12;return String(Math.floor(h)).padStart(2,"0")+":"+String(Math.floor((h%1)*60)).padStart(2,"0")}
 
-/* name, complexity(1-3), price($M), value(1-3), stage, fact */
-const ACT = [
- ["Watch the sky (sunset or Earth)",1,0,1,1,"From the Moon's near side Earth hangs in nearly the same spot forever because the Moon is tidally locked."],
- ["Brush dust off solar panels",1,0,2,1,"Dust on Opportunity's panels cut its power until a storm ended the mission. Brushing keeps energy flowing."],
- ["Picture studied in rocket",1,0,1,1,"Orbiter photos show craters; shadows are used to work out how deep they are."],
- ["Stargaze through the rocket telescope",1,2,1,1,"With no air, stars do not twinkle on the Moon. They look steady and sharp."],
- ["Exercise to protect bones and muscles",1,0,2,1,"Astronauts exercise about 2 hours a day. Low gravity makes bones lose density."],
- ["Read your radiation badge",1,1,2,1,"There is no thick air or magnetic field on the Moon, so radiation is higher than on Earth."],
- ["Measure plant growth",2,4,2,1,"Plants help recycle air and could become fresh food on long missions."],
- ["Check the reactor heat output",2,3,2,1,"Nuclear batteries turn heat into electricity. Curiosity's makes about 110 W, like a light bulb."],
- ["Measure the ground temperature",1,1,2,1,"The lunar surface swings from about 120 °C in daylight to about -170 °C at night."],
- ["Analyze meteorite",2,4,3,1,"Meteorites are pieces of asteroids and planets. They show what the early solar system was made of."],
- ["Photograph moons or Earth in the sky",1,1,1,1,"Mars has two tiny moons, Phobos and Deimos. Earth's phases look like the Moon's phases."],
- ["Radio a school on Earth",1,0,2,1,"Radio takes about 1.3 seconds to reach the Moon, but 3 to 22 minutes to reach Mars."],
- ["Scan rocks with a spectrometer",2,5,3,1,"Spectrometers read the light 'fingerprint' of minerals. ChemCam even zaps rocks with a laser."],
- ["Measure an impact crater",2,2,2,1,"Crater size and shape tell scientists how big the impact was and how old the surface is."],
- ["Measure moving sand dunes",2,2,2,1,"Mars has wind-blown dunes that move by metres every year."],
- ["Dirt sample",1,1,2,1,"Lunar regolith is sharp, glassy dust because there is no wind or water to smooth it."],
- ["Work on dirt sample in rocket",2,3,2,1,"Heating regolith can release oxygen, which could one day make air and fuel."],
- ["Grow food and vegetation on the rocket",2,5,3,1,"Salad grown on the ISS has been eaten by astronauts. Fresh food helps morale and nutrition."],
- ["Find meteorite",2,3,3,1,"Dark meteorites stand out on pale lunar soil and on Mars's plains."],
- ["Map buried ice with ground radar",3,10,3,1,"Ground radar sends waves underground. Ice buried at the poles could become water and rocket fuel."],
- ["Sieve sand from the riverbed",2,2,2,1,"Grain shapes show whether water ever moved the sand. Round grains mean flowing water."],
- ["Measure how much your shield blocks",2,3,3,1,"Thick regolith or water walls block radiation and tiny meteoroids."],
- ["Set up a science instrument",2,4,2,1,"Instruments left behind keep sending data after the crew goes home."],
- ["Study a rolling-boulder track",2,2,2,1,"Boulder tracks on slopes show that moonquakes and impacts shake the ground."],
- ["Weather and radiation log",1,1,2,1,"Logging data every day shows patterns, such as solar storms, that warn crews."],
- ["Health check: compare astronaut body vs Earth standard",2,2,2,1,"Medics compare heart rate, bone density and weight with Earth baselines."],
- ["Map the rock layers",3,6,3,2,"Layers are like pages of a history book. The deeper the layer, the older the story."],
- ["Set up a seismometer",3,8,3,2,"Apollo seismometers heard moonquakes. The Moon 'rang like a bell' for over an hour."],
- ["Test clay minerals",2,3,2,2,"Clay minerals form when rock and water meet, so they are clues to wet pasts."],
- ["Collect volcanic glass beads",2,3,3,2,"Apollo 17 found orange glass beads from lava fountains about 3.6 billion years ago."],
- ["Drill a deep rock core",3,10,3,2,"Drill cores keep rock layers in order, so scientists can read their history."],
- ["Climb down a crater cliff",3,6,3,2,"Rope and tether teams are trained for steep slopes. Safety comes first."],
- ["Pack a sample tube for return to Earth",2,4,3,2,"Perseverance seals rock cores in tubes to be returned to Earth labs."],
- ["Make oxygen from local resources",3,12,3,2,"Perseverance's MOXIE made oxygen from Mars air. Moon rocks are about 40% oxygen by mass."],
- ["Relay data through an orbiter",2,3,2,2,"Orbiters act as radio relays so the surface can talk to Earth more often."],
- ["Launch a weather balloon",2,4,2,2,"Balloons measure temperature and pressure at different heights."],
- ["Run a heart and sleep study",2,2,2,2,"Sleep and heart rhythms change in space, which helps doctors plan long trips."],
- ["Track the Sun with a solar telescope",2,5,2,2,"Solar flares can be dangerous. Telescopes help give warnings."],
- ["Send data back to Earth",1,0,2,1,"Data is sent in packets; a good link may take minutes to send a picture from Mars."],
- ["Space walk discoveries",3,8,3,2,"Apollo crews found new rock types on EVAs that robots had missed."],
- ["Find water",3,10,3,2,"Ice in permanently shadowed craters could supply drinking water, air and fuel."],
- ["Grow vegetation in Martian or lunar soil",3,6,3,3,"Scientists have grown plants in soil made like lunar and Martian regolith, with nutrients added."],
- ["Discover evidence of past life",3,15,3,3,"No life has been found yet, but Perseverance is collecting rock cores that might hold signs."],
- ["Try activities on the Moon or Mars",2,0,1,3,"On the Moon gravity is one sixth of Earth's, so a jump looks like slow motion."],
- ["Explore a lava tube cave",3,12,3,3,"Lava tubes could shelter bases from radiation and temperature swings."],
- ["Probe a permanently shadowed crater",3,12,3,3,"Some craters have not seen sunlight for billions of years, at about -240 °C."]
+/* name, hours, power price, (unused), unlock stage, fact, points, level, outside */
+const ACT=[
+ ["Take a picture of the landscape",1,0,0,1,"Photographs let scientists measure rocks, slopes and shadows long after you leave.",5,"Very easy",0],
+ ["Watch the sky (sunset or Earth)",1,0,0,1,"From the Moon's near side Earth hangs in nearly the same spot forever because the Moon is tidally locked.",5,"Very easy",0],
+ ["Brush dust off solar panels",1,0,0,1,"Dust on Opportunity's panels cut its power until a storm ended the mission. Brushing keeps energy flowing.",5,"Very easy",1],
+ ["Picture studied in rocket",2,4,0,1,"Orbiter photos show craters; shadows are used to work out how deep they are.",10,"Easy",0],
+ ["Stargaze through the rocket telescope",2,4,0,1,"With no air, stars do not twinkle on the Moon. They look steady and sharp.",10,"Easy",0],
+ ["Exercise to protect bones and muscles",2,4,0,1,"Astronauts exercise about 2 hours a day. Low gravity makes bones lose density.",10,"Easy",0],
+ ["Read your radiation badge",2,4,0,1,"There is no thick air or magnetic field on the Moon, so radiation is higher than on Earth.",10,"Easy",0],
+ ["Measure plant growth",2,4,0,1,"Plants help recycle air and could become fresh food on long missions.",10,"Easy",0],
+ ["Check the reactor heat output",2,4,0,1,"Nuclear batteries turn heat into electricity. Curiosity's makes about 110 W, like a light bulb.",10,"Easy",0],
+ ["Measure the ground temperature",2,4,0,1,"The lunar surface swings from about 120 °C in daylight to about -170 °C at night.",10,"Easy",1],
+ ["Analyze meteorite",2,4,0,1,"Meteorites are pieces of asteroids and planets. They show what the early solar system was made of.",15,"Easy",0],
+ ["Photograph moons or Earth in the sky",2,4,0,1,"Mars has two tiny moons, Phobos and Deimos. Earth's phases look like the Moon's phases.",15,"Easy",0],
+ ["Radio a school on Earth",2,4,0,1,"Radio takes about 1.3 seconds to reach the Moon, but 3 to 22 minutes to reach Mars.",15,"Easy",0],
+ ["Scan rocks with a spectrometer",2,4,0,1,"Spectrometers read the light 'fingerprint' of minerals. ChemCam even zaps rocks with a laser.",15,"Easy",0],
+ ["Measure an impact crater",2,4,0,1,"Crater size and shape tell scientists how big the impact was and how old the surface is.",15,"Easy",1],
+ ["Sample basalt lava rock",2,4,0,1,"Basalt is cooled lava. The dark lunar maria are mostly basalt, roughly 3 to 3.5 billion years old.",15,"Easy",1],
+ ["Survey a crater rim",2,4,0,1,"Crater rims expose deep rock layers that were thrown out by the impact.",15,"Easy",1],
+ ["Measure carbon dioxide frost",2,4,0,1,"On Mars, carbon dioxide freezes into frost at the poles in winter, because Mars's thin air is mostly CO2.",15,"Easy",1],
+ ["Measure moving sand dunes",2,4,0,1,"Mars has wind-blown dunes that move by metres every year.",15,"Easy",1],
+ ["Dirt sample",5,8,0,2,"Lunar regolith is sharp, glassy dust because there is no wind or water to smooth it.",20,"Medium",1],
+ ["Work on dirt sample in rocket",5,8,0,2,"Heating regolith can release oxygen, which could one day make air and fuel.",20,"Medium",0],
+ ["Grow food and vegetation on the rocket",5,8,0,2,"Salad grown on the ISS has been eaten by astronauts. Fresh food helps morale and nutrition.",20,"Medium",0],
+ ["Find meteorite",5,8,0,2,"Dark meteorites stand out on pale lunar soil and on Mars's plains.",20,"Medium",1],
+ ["Map buried ice with ground radar",5,8,0,2,"Ground radar sends waves underground. Ice buried at the poles could become water and rocket fuel.",20,"Medium",1],
+ ["Sieve sand from the riverbed",5,8,0,2,"Grain shapes show whether water ever moved the sand. Round grains mean flowing water.",20,"Medium",1],
+ ["Measure how much your shield blocks",5,8,0,2,"Thick regolith or water walls block radiation and tiny meteoroids.",20,"Medium",0],
+ ["Set up a science instrument",5,8,0,2,"Instruments left behind keep sending data after the crew goes home.",20,"Medium",1],
+ ["Study gullies on a slope",5,8,0,2,"Gullies on Mars slopes may have been carved by flowing material. Scientists still debate whether it was liquid water or dry ice frost.",20,"Medium",1],
+ ["Collect hematite \"blueberries\"",5,8,0,2,"Opportunity found small round hematite spherules nicknamed blueberries on Mars. They formed in water.",20,"Medium",1],
+ ["Collect a bright highland rock",5,8,0,2,"The Moon's bright highlands are mostly anorthosite, rock from its original crust.",20,"Medium",1],
+ ["Study a rolling-boulder track",5,8,0,2,"Boulder tracks on slopes show that moonquakes and impacts shake the ground.",20,"Medium",1],
+ ["Weather and radiation log",7,12,0,3,"Logging data every day shows patterns, such as solar storms, that warn crews.",25,"Hard",0],
+ ["Health check: compare astronaut body vs Earth standard",7,12,0,3,"Medics compare heart rate, bone density and weight with Earth baselines.",25,"Hard",0],
+ ["Map the rock layers",7,12,0,3,"Layers are like pages of a history book. The deeper the layer, the older the story.",25,"Hard",1],
+ ["Set up a seismometer",7,12,0,3,"Apollo seismometers heard moonquakes. The Moon 'rang like a bell' for over an hour.",25,"Hard",1],
+ ["Explore a lava rille",7,12,0,3,"Apollo 15 explored Hadley Rille, a winding channel carved by flowing lava.",25,"Hard",1],
+ ["Map a lunar swirl",7,12,0,3,"Lunar swirls such as Reiner Gamma are bright patterns linked to local magnetic fields.",25,"Hard",1],
+ ["Test clay minerals",7,12,0,3,"Clay minerals form when rock and water meet, so they are clues to wet pasts.",25,"Hard",0],
+ ["Collect volcanic glass beads",7,12,0,3,"Apollo 17 found orange glass beads from lava fountains about 3.6 billion years ago.",25,"Hard",1],
+ ["Drill a deep rock core",7,12,0,3,"Drill cores keep rock layers in order, so scientists can read their history.",25,"Hard",1],
+ ["Climb down a crater cliff",7,12,0,3,"Rope and tether teams are trained for steep slopes. Safety comes first.",25,"Hard",1],
+ ["Pack a sample tube for return to Earth",7,12,0,3,"Perseverance seals rock cores in tubes to be returned to Earth labs.",25,"Hard",0],
+ ["Relay data through an orbiter",7,12,0,3,"Orbiters act as radio relays so the surface can talk to Earth more often.",25,"Hard",0],
+ ["Launch a weather balloon",7,12,0,3,"Balloons measure temperature and pressure at different heights.",25,"Hard",1],
+ ["Run a heart and sleep study",7,12,0,3,"Sleep and heart rhythms change in space, which helps doctors plan long trips.",25,"Hard",0],
+ ["Track the Sun with a solar telescope",7,12,0,3,"Solar flares can be dangerous. Telescopes help give warnings.",25,"Hard",0],
+ ["Send data back to Earth",7,12,0,3,"Data is sent in packets; a good link may take minutes to send a picture from Mars.",25,"Hard",0],
+ ["Try activities on the Moon or Mars",7,12,0,3,"On the Moon gravity is one sixth of Earth's, so a jump looks like slow motion.",25,"Hard",1],
+ ["Make oxygen from local resources",10,16,0,4,"Perseverance's MOXIE made oxygen from Mars air. Moon rocks are about 40% oxygen by mass.",40,"Very hard",0],
+ ["Space walk discoveries",10,16,0,4,"Apollo crews found new rock types on EVAs that robots had missed.",40,"Very hard",1],
+ ["Grow vegetation in Martian or lunar soil",10,16,0,4,"Scientists have grown plants in soil made like lunar and Martian regolith, with nutrients added.",40,"Very hard",0],
+ ["Find water",10,16,0,4,"Ice in permanently shadowed craters could supply drinking water, air and fuel.",40,"Very hard",1],
+ ["Discover evidence of past life",10,16,0,4,"No life has been found yet, but Perseverance is collecting rock cores that might hold signs.",40,"Very hard",1],
+ ["Explore a lava tube cave",10,16,0,4,"Lava tubes could shelter bases from radiation and temperature swings.",40,"Very hard",1],
+ ["Probe a permanently shadowed crater",10,16,0,4,"Some craters have not seen sunlight for billions of years, at about -240 °C.",40,"Very hard",1]
 ];
-const actPts = a => a[1]*a[3]*2 + Math.round(a[2]/5);
-
-
+const actPts=a=>a[6];
+const actEnergy=a=>a[1];
 
 const QUIZ = [
  {q:"Why did NASA's Opportunity rover stop working in 2018?",a:["A giant dust storm blocked sunlight to its solar panels","Its wheels fell off","It ran out of fuel","It fell into a crater"],c:0,e:"Dust storm. Solar rovers lose power when dust blocks sunlight.",g:1,v:5},
@@ -495,7 +522,7 @@ function applyFx(fx,sev,prot){
     S.res[k]=k==="power"?clamp(S.res[k]+v,0,capP()):clamp(S.res[k]+v);
     if(v)out.push(RIC[k]+" "+(v>0?"+":"")+v)}
   clampRes();return out.join("  ")}
-const unlockDay=a=>({1:1,2:3,3:5})[a[4]]||1;
+const unlockDay=a=>({1:1,2:3,3:5,4:8})[a[4]]||1;
 
 const CH=[
  {id:"o2",icon:"🫧",n:"Service the oxygen scrubbers",e:1,fx:{o2:14},ctx:"The ISS uses machines to pull out CO2 and make oxygen. They need regular care.",fact:"Apollo 13 crews once rigged a CO2 filter from duct tape and a sock-like hose. Scrubbers matter."},
@@ -810,7 +837,9 @@ function dataBody(){
   const life=[{k:"o2",n:"Oxygen",c:VC.o2},{k:"water",n:"Water",c:VC.water},{k:"food",n:"Food",c:VC.food}],crew=[{k:"power",n:"Power",c:VC.power},{k:"health",n:"Health",c:VC.health},{k:"morale",n:"Morale",c:VC.morale}];
   return liveHTML()+`<p class="small muted">The charts below update every morning. Hover or tap a chart to read values. Every chart has a table view.</p>`+
   barChart("Meters right now (percent of full)",RES.map(r=>({l:r[1]+" "+r[2],v:S.res[r[0]]/(r[0]==="power"?cap:100)*100,t:Math.round(S.res[r[0]])+(r[0]==="power"?" / "+cap:" / 100")+(S.res[r[0]]<25?" ⚠️ low":"")})).concat([{l:"☢️ Radiation dose",v:S.rad/RADMAX*100,t:S.rad.toFixed(1)+" / "+RADMAX+" mSv"+(S.rad>=120?" ⚠️ sickness range":"")}]),{max:100})+
-  lineChart("life","Oxygen, water and food by day",life,{max:100})+
+  lineChart("o2","Oxygen by day",[life[0]],{max:100})+
+  lineChart("water","Water by day",[life[1]],{max:100})+
+  lineChart("food","Food by day",[life[2]],{max:100})+
   lineChart("crew","Power, health and morale by day",crew,{max:Math.max(100,cap)})+
   lineChart("rad","Radiation dose this month (mSv)",[{k:"rad",n:"Dose",c:VC.rad}],{max:RADMAX,refs:[{v:120,label:"Sickness"},{v:RADMAX,label:"Limit"}]})+
   lineChart("sp","Science Points by day",[{k:"sp",n:"SP",c:VC.sp}],{max:Math.max(50,...S.hist.map(h=>h.sp))})+
@@ -841,6 +870,33 @@ function renderManual(){
   ${sec("12. A good first three days",`<ol><li>Day 1: fix any low meter, brush the solar panels, then <b>build something small</b> that makes power or air.</li><li>Day 2: explore the nearby field site for your first sample, and read the Base tab.</li><li>Day 3: build a <b>radiation shelter</b> (regolith). Check the Data tab. Keep 2 to 3 hours free for problems.</li><li>Before day 16: build a <b>Kilopower reactor</b> and batteries for the dark days.</li></ol>`)}
   </div>`}
 /* ============ TRAINING ACADEMY ============ */
+
+/* ============ DRAMATIC OPENING (typewriter) ============ */
+const DRAMA=[
+ "Astronaut, you are our only hope.",
+ "Space Mission, our company, has attempted infinite times but hasn't succeeded in making a lunar or martian outpost.",
+ "Our budget is low, and this is our last chance.",
+ "We need you."
+];
+let DR=null;
+function renderDrama(){
+  return `<div class="home-wrap drama-wrap"><svg class="home-stars" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${starsSVG(160,1000,1500,41)}${starsSVG(80,1000,1500,67)}</svg>
+  <button class="sm dskip" onclick="skipDrama()">Skip ▸▸</button>
+  <div id="dramatext" class="dramatext" aria-live="polite"></div>
+  <div id="dramabtn" class="dramabtn" hidden><button class="hbtn primary" onclick="go('modes')">Accept the mission →</button></div></div>`}
+function startDrama(){
+  stopDrama();const el=$("#dramatext");if(!el)return;
+  const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+  DR={li:0,ci:0,timer:null,done:false};
+  el.innerHTML=DRAMA.map((_,i)=>`<p class="dline" id="dl${i}"></p>`).join("");
+  const step=()=>{
+    if(!DR)return;const line=DRAMA[DR.li];
+    if(DR.ci<line.length){const p=$("#dl"+DR.li);if(p)p.innerHTML=esc(line.slice(0,DR.ci+1))+'<span class="caret"></span>';DR.ci++;const ch=line[DR.ci-1];DR.timer=setTimeout(step,reduce?4:/[.,]/.test(ch)?260:ch===" "?55:48)}
+    else{const p=$("#dl"+DR.li);if(p)p.innerHTML=esc(line);DR.li++;DR.ci=0;if(DR.li>=DRAMA.length)finishDrama();else DR.timer=setTimeout(step,reduce?10:750)}};
+  DR.timer=setTimeout(step,600)}
+function finishDrama(){if(!DR)return;DR.done=true;const last=$("#dl"+(DRAMA.length-1));if(last)last.innerHTML=esc(DRAMA[DRAMA.length-1])+'<span class="caret"></span>';const b=$("#dramabtn");if(b)b.hidden=false}
+function skipDrama(){if(!DR)return;clearTimeout(DR.timer);DRAMA.forEach((l,i)=>{const p=$("#dl"+i);if(p)p.innerHTML=esc(l)});DR.li=DRAMA.length;finishDrama()}
+function stopDrama(){if(DR){clearTimeout(DR.timer);DR=null}}
 
 /* ============ LIVE TELEMETRY + LIVE SPACE WEATHER ============ */
 const REALSUN={ok:false,big:false,cls:"",kp:null};
@@ -965,10 +1021,10 @@ function baseScene(night){
   return o+`</svg>`}
 /* ============ HUD ============ */
 function hudHTML(){
-  const cap=capP();
-  const bar=r=>{const v=S.res[r[0]],m=r[0]==="power"?cap:100,pc=Math.max(0,Math.min(100,v/m*100));return `<div class="hb" title="${r[2]}"><span>${r[1]} ${Math.round(v)}</span><div class="bar ${pc<25?"danger":pc<50?"warn":""}"><i style="width:${pc}%"></i></div></div>`};
-  const rp=Math.min(100,S.rad/RADMAX*100);
-  return `<div class="hrow"><span class="hchip strong">🌑 Day ${S.day}/${NIGHTS}</span><span class="hchip">${isDark(S.day)?"🌑 Dark day":"☀️ Sunlit day"}</span><span class="hchip">🕒 ${clock()}</span><span class="hchip">🌡️ ${surfaceTemp()} °C outside</span><span class="hchip">⚡ ${S.energy}h left</span><span class="hchip">⭐ ${S.sp} SP</span><span class="hchip">🛡️ ${armorEff().toFixed(1)}/3</span></div><div class="hbars">${RES.map(bar).join("")}<div class="hb" title="Radiation dose this month"><span>☢️ ${Math.round(S.rad)}/${RADMAX} mSv</span><div class="bar ${rp>=70?"danger":rp>=40?"warn":""}"><i style="width:${rp}%"></i></div></div></div>`}
+  const cap=capP(),dr=MD().dr,counter=(k,icon,name,unit,perDay)=>{const v=Math.round(S.res[k]),pc=v<25?"danger":v<50?"warn":"";return `<div class="cnt ${pc}" title="${name}"><div class="cn">${icon} ${name}</div><div class="cv">${v}<span>${unit}</span></div><div class="cd">▼ about ${perDay} a day</div></div>`};
+  const bar=r=>{const v=S.res[r[0]],m=r[0]==="power"?cap:100,pc=Math.max(0,Math.min(100,v/m*100));return `<div class="hb" title="${r[2]}"><span>${r[1]} ${r[2]} ${Math.round(v)}</span><div class="bar ${pc<25?"danger":pc<50?"warn":""}"><i style="width:${pc}%"></i></div></div>`};
+  const rp=Math.min(100,S.rad/RADMAX*100),spToday=S.sp-(S.spDay0===undefined?S.sp:S.spDay0);
+  return `<div class="hrow"><span class="hchip strong">🌑 Day ${S.day}/${NIGHTS}</span><span class="hchip">${isDark(S.day)?"🌑 Dark day":"☀️ Sunlit day"}</span><span class="hchip">🕒 ${clock()}</span><span class="hchip">🌡️ ${surfaceTemp()} °C outside</span><span class="hchip">⚡ ${S.energy}h left</span><span class="hchip">🛡️ ${armorEff().toFixed(1)}/3</span></div><div class="counters">${counter("o2","🫧","Oxygen","%",Math.round((DAY.o2+NIGHT.o2)*dr))}${counter("water","💧","Water","%",Math.round((DAY.water+NIGHT.water)*dr))}${counter("food","🍲","Food","%",Math.round((DAY.food+NIGHT.food)*dr))}<div class="cnt sp" title="Science Points"><div class="cn">⭐ Science Points</div><div class="cv">${S.sp}<span>SP</span></div><div class="cd">${spToday>=0?"▲ +"+spToday:"▼ "+spToday} today</div></div></div><div class="hbars">${["power","health","morale"].map(k=>bar(RES.find(r=>r[0]===k))).join("")}<div class="hb" title="Radiation dose this month"><span>☢️ Radiation ${Math.round(S.rad)}/${RADMAX} mSv</span><div class="bar ${rp>=70?"danger":rp>=40?"warn":""}"><i style="width:${rp}%"></i></div></div></div>`}
 function tip(){
   if(!MD().hints)return"";let t;
   const low=RES.slice(0,5).sort((a,b)=>S.res[a[0]]-S.res[b[0]])[0];
@@ -985,8 +1041,7 @@ function openModal(html,btn){const m=$("#modal");m.innerHTML='<div class="modalb
 function closeModal(){const m=$("#modal");m.hidden=true;m.innerHTML=""}
 /* ============ DAY SCREEN ============ */
 const OUTCH={dust:1,shelter:1,isru:1};
-const OUTRE=/crater|dune|riverbed|meteorite|cliff|lava|shadowed|space walk|boulder|rock layers|ice|sunset|sky|solar telescope|seismometer|instrument|sieve|volcanic|find water/i;
-const isOutSci=a=>OUTRE.test(a[0]);
+const isOutSci=a=>!!a[8];
 function renderDay(){
   const T=S.tab||"maintain",tabs=[["maintain","🛠️","Maintain"],["science","🔬","Science"],["explore","🧭","Explore"],["build","🏗️","Build"],["mission","🎯","Mission"],["data","📈","Data"],["archive","📜","Archive"],["base","📊","Base"]];
   return `<div class="hudcard">${hudHTML()}${tip()}</div>
@@ -996,7 +1051,7 @@ function renderDay(){
 function tabBody(T){
   const free=MD().free;
   if(T==="maintain")return `<p class="small muted">Everyday survival jobs. Each uses hours. Work outside costs a little suit oxygen and radiation dose.</p>`+CH.map(c=>{const maxed=c.max&&S.armor>=c.max;const fx=Object.entries(c.fx).filter(([k])=>k!=="armor"&&k!=="dust").map(([k,v])=>RIC[k]+(v>0?"+":"")+v).join(" ");return `<button class="opt" ${S.energy<c.e||maxed?"disabled":""} onclick="doChore('${c.id}')">${c.icon} ${esc(c.n)} <span class="small muted">⚡${c.e}h ${fx}${c.id==="dust"?" 🧹":""}${c.id==="shelter"?" 🛡️+1":""}</span><span class="ctx">${OUTCH[c.id]?"🌑 Outside · ":"🏠 Inside · "}${esc(c.ctx)}</span></button>`}).join("");
-  if(T==="science")return `<p class="small muted">Science tasks use hours and power and earn Science Points. More unlock on days 3 and 5.</p>`+ACT.map((a,i)=>{const dn=S.done[i],lock=unlockDay(a)>S.day,pc=Math.ceil(a[2]/4),dis=dn||lock||S.energy<a[1];return `<button class="opt" style="opacity:${dn?.55:1}" ${dis?"disabled":""} onclick="doSci(${i})"><b>${esc(a[0])}</b> <span class="tag">${isOutSci(a)?"🌑 outside":"🔬 inside"}</span><span class="tag">⚡${a[1]}h</span><span class="tag">power -${pc}</span><span class="tag good">+${actPts(a)} SP</span>${lock?`<span class="tag">unlocks day ${unlockDay(a)}</span>`:""}${dn?`<span class="ctx">${esc(a[5])}</span>`:""}</button>`}).join("");
+  if(T==="science"){const levels=["Very easy","Easy","Medium","Hard","Very hard"];let h=`<p class="small muted">Science tasks cost hours and a little power, and earn Science Points. Harder tasks unlock later: Medium on day 3, Hard on day 5, Very hard on day 8.</p>`;levels.forEach(lv=>{const rows=ACT.map((a,i)=>[a,i]).filter(x=>x[0][7]===lv);if(!rows.length)return;h+=`<p><b>${lv}</b> <span class="small muted">· ⚡${rows[0][0][1]}h each · +${rows[0][0][6]} to +${Math.max(...rows.map(x=>x[0][6]))} SP</span></p>`+rows.map(([a,i])=>{const dn=S.done[i],lock=unlockDay(a)>S.day,pc=Math.ceil(a[2]/4),dis=dn||lock||S.energy<a[1];return `<button class="opt" style="opacity:${dn?.55:1}" ${dis?"disabled":""} onclick="doSci(${i})"><b>${esc(a[0])}</b> <span class="tag">${isOutSci(a)?"🌑 outside":"🔬 inside"}</span><span class="tag">⏱️ ${a[1]}h</span><span class="tag">⚡ ${pc?"power −"+pc:"no power"}</span><span class="tag good">+${a[6]} SP</span>${lock?`<span class="tag">unlocks day ${unlockDay(a)}</span>`:""}${dn?`<span class="ctx">${esc(a[5])}</span>`:""}</button>`}).join("")});return h}
   if(T==="data")return dataBody();
   if(T==="explore")return exploreBody();
   if(T==="build")return buildBody();
@@ -1038,7 +1093,7 @@ function loadSamples(){const n=S.samples.filter(x=>!S.loaded.includes(x)).length
 /* ============ DAY FLOW ============ */
 function checkFail(){if(MD().free)return false;let c=null;if(S.res.o2<=0)c=["o2","oxygen"];else if(S.res.health<=0)c=["health","health"];else if(S.rad>=RADMAX)c=["rad","radiation"];if(c){S.over={win:false,cause:c[0],why:c[1]};S.phase="end";save();go("end");return true}return false}
 function startDay(){
-  S.phase="day";S.alert=0;closeModalSafe();
+  S.phase="day";S.alert=0;S.spDay0=S.sp;closeModalSafe();
   const arrived=S.orders.filter(o=>o.arrive<=S.day);S.orders=S.orders.filter(o=>o.arrive>S.day);
   arrived.forEach(o=>{if(o.t[0]==="p"){const k=o.t.slice(2);S.mat[k]+=6;log("📦 Material pack delivered: 6 "+MATK[k][1])}else{const s=SUP[+o.t.slice(2)],t=applyFx(s.fx,0);log("📦 Supplies delivered: "+s.n+" → "+t)}});
   const cg=cargoDrop();toast("🚀 Cargo lander: "+(cg||"nothing today")+(arrived.length?" + your orders":""));
@@ -1147,14 +1202,14 @@ function renderHome(){
    <h1 class="home-title">OUTPOST 7</h1><p class="home-sub">Six crews were lost. Survive a month on the Moon.</p>
    ${home()}
    <p class="home-order">Mercury · Venus · Earth · Mars · Jupiter · Saturn · Uranus · Neptune</p>
-   <div class="home-btns"><button class="hbtn primary" onclick="go('modes')">🚀 New Outpost</button><button class="hbtn" ${has?"":"disabled"} onclick="resume()">Continue Outpost</button></div>
+   <div class="home-btns"><button class="hbtn primary" onclick="go('drama')">🚀 New Outpost</button><button class="hbtn" ${has?"":"disabled"} onclick="resume()">Continue Outpost</button></div>
    <p class="home-info">${esc(info)}</p></div>`}
 /* ============ RENDER ============ */
 function chips(){$("#chips").innerHTML=S.mode&&S.phase!=="home"?`<span class="chip">${MD().icon} ${MD().n}</span><span class="chip">🌙 Day ${Math.min(S.day,NIGHTS)}/${NIGHTS}</span><span class="chip">⭐ ${S.sp} SP</span>`:""}
 function render(){
-  stopLive();chips();document.body.classList.toggle("home",V==="home");
-  const f={home:renderHome,modes,lore:renderLore,training:renderTraining,howto:renderHowTo,manual:renderManual,day:renderDay,event:renderEvent,night:renderNight,end:renderEnd,quiz:renderQuiz}[V];
-  $("#app").innerHTML=f();if(V==="day"&&S.tab==="build"){bRefresh()}if(V==="day"&&S.tab==="data"){startLive()}}
+  stopLive();stopDrama();chips();document.body.classList.toggle("home",V==="home"||V==="drama");
+  const f={home:renderHome,modes,lore:renderLore,drama:renderDrama,training:renderTraining,howto:renderHowTo,manual:renderManual,day:renderDay,event:renderEvent,night:renderNight,end:renderEnd,quiz:renderQuiz}[V];
+  $("#app").innerHTML=f();if(V==="day"&&S.tab==="build"){bRefresh()}if(V==="day"&&S.tab==="data"){startLive()}if(V==="drama"){startDrama()}}
 V="home";render();
 
 </script>
