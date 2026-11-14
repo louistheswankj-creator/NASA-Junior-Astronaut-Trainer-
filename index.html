@@ -715,6 +715,7 @@ function render(){
   else if(scr==='surface') renderSurface();
   else if(scr==='end') renderEnd();
   else if(scr==='exam') renderExam();
+  else if(scr==='trainer') renderTrainer();
   if(MP.room) { mpSync(); }
 }
 
@@ -725,6 +726,7 @@ function renderMenu(){
   <div class="modes">
     <button onclick="document.getElementById('dests').scrollIntoView({behavior:'smooth'})"><b>🚀 Mission mode</b><small style="color:var(--muted)">Land, survive, build a base and learn. Pick a destination below.</small></button>
     <button onclick="scr='mp';render()"><b>👥 Multiplayer crew</b><small style="color:var(--muted)">Join friends live: send supplies and explore in 3D together.${MP.room?' <span class="tag">Crew '+esc(MP.code.toUpperCase())+'</span>':''}</small></button>
+    <button onclick="startTrainer()"><b>🧑‍🚀 Junior Astronaut Trainer</b><small style="color:var(--muted)">Kid-friendly training: 6 short lessons, quizzes, a rank and badges.${(store.get('jat',{}).done||[]).length?' <span class="tag">'+(store.get('jat',{}).done||[]).length+'/6 done</span>':''}</small></button>
     <button onclick="pick3D()"><b>🥽 3D first-person explorer</b><small style="color:var(--muted)">Walk the base, diagnose and fix emergencies in real gravity, collect samples, learn.</small></button>
   </div>
   ${MP.room?`<div class="card"><div id="roster">${rosterHTML()}</div></div>`:''}
@@ -2084,6 +2086,71 @@ function evaExit(){
   }
   requestAnimationFrame(frame);
 })();
+
+/* ============ Junior Astronaut Trainer ============ */
+const JAT_RANKS = ['Space Cadet 🌱','Rookie Astronaut ⭐','Junior Astronaut 🚀','Flight Specialist 🛰️','Commander 🏅','Mission Hero 🏆'];
+const JAT_MODULES = [
+  {id:'grav',emoji:'🌍',name:'Gravity & Floating',intro:'Gravity is the pull that keeps your feet on the ground. In orbit, astronauts and the station fall around Earth together, so they float!',
+    tip:'Try it: drop a pencil. On the ISS it would just drift beside you.',
+    qs:[{q:'Why do astronauts float on the space station?',a:'They are falling around Earth together with the station',w:['There is no gravity at all up there','Space pushes things upward','The station is too light to feel gravity'],why:'Gravity is still about 90% as strong there. Everything is in free-fall, so it feels weightless.'},
+        {q:'On the Moon you would weigh about…',a:'One sixth of your Earth weight',w:['The same as on Earth','Double your Earth weight','Nothing at all'],why:'The Moon is smaller, so its gravity is about 1/6 of Earth\'s.'}]},
+  {id:'suit',emoji:'🧑‍🚀',name:'Spacesuit School',intro:'A spacesuit is a tiny spaceship you wear. It gives you air to breathe, keeps pressure around your body, controls temperature and shields you from dust.',
+    tip:'Space is both scorching in sunlight and freezing in shade, so suits have layers like a giant jacket.',
+    qs:[{q:'What does a spacesuit give an astronaut?',a:'Air, pressure and temperature control',w:['Wings to fly','Super strength','Gravity'],why:'The suit protects you the way Earth\'s air normally does.'},
+        {q:'Why do astronauts wear gold-coloured visors?',a:'To reflect harsh sunlight',w:['It looks cool','To talk to Earth','To see in the dark'],why:'A thin gold layer bounces back bright sunlight and heat.'}]},
+  {id:'food',emoji:'🥫',name:'Space Food & Water',intro:'Astronauts eat packaged meals and drink recycled water. Even sweat and breath moisture are cleaned and reused on the station!',
+    tip:'Crumbs are a problem in space because they float into equipment, so tortillas replace bread.',
+    qs:[{q:'Why do astronauts often eat tortillas instead of bread?',a:'Bread makes floating crumbs',w:['Tortillas are heavier','Bread is not allowed on Earth','They hate sandwiches'],why:'Crumbs can drift into eyes, noses and machines.'},
+        {q:'What happens to water on the ISS?',a:'Most of it is cleaned and recycled',w:['It is thrown away','It is brought daily from Earth','It turns into food'],why:'The station recycles about 90% of its water.'}]},
+  {id:'rad',emoji:'☀️',name:'Staying Safe from Radiation',intro:'The Sun sends out invisible energy called radiation. Earth\'s magnetic field helps protect us. Far from Earth, astronauts need shelters and warnings from forecasters.',
+    tip:'During a solar flare, crews move to the best-shielded room, often the one packed with supplies and water.',
+    qs:[{q:'What should a crew do during a solar flare?',a:'Move to a well-shielded shelter',w:['Go outside to watch','Turn off all the lights and nap in the airlock','Ignore it'],why:'Thick walls and water or supplies absorb radiation.'},
+        {q:'What protects people on Earth from much of the Sun\'s radiation?',a:'Earth\'s magnetic field and air',w:['The ocean','Clouds only','Mountains'],why:'Leaving that protection is why deep space needs shielding.'}]},
+  {id:'mars',emoji:'🔴',name:'Mission to Mars',intro:'Mars is cold, dusty and has air made of mostly carbon dioxide. A trip takes about seven months, and radio messages take minutes to reach Earth.',
+    tip:'Crews must be able to fix problems on their own, because help is far away.',
+    qs:[{q:'About how long does a trip to Mars take?',a:'Around 7 months',w:['2 hours','3 days','10 years'],why:'Spacecraft must travel hundreds of millions of kilometres.'},
+        {q:'What gas is most of the air on Mars?',a:'Carbon dioxide',w:['Oxygen','Helium','Steam'],why:'You could not breathe it, but machines like MOXIE can make oxygen from it.'}]},
+  {id:'fix',emoji:'🛠️',name:'Emergency Fix-It',intro:'Astronaut teams train for problems: an air leak, a power cut or a sick crewmate. The golden rule is stay calm, identify the problem, then act.',
+    tip:'Mission Control and the crew follow checklists so nobody forgets a step.',
+    qs:[{q:'What is the first thing to do in an emergency?',a:'Stay calm and work out what is wrong',w:['Run in circles','Hit every button','Hide'],why:'Careful thinking and checklists fix more problems than panic.'},
+        {q:'Why do astronauts use checklists?',a:'So no important step is forgotten',w:['They are bored','To fill the walls','Because computers refuse to work without them'],why:'Even experts rely on checklists when things get stressful.'}]}
+];
+let JT=null;
+function jatSave(){ store.set('jat',{done:[...JT.done],best:JT.best}); }
+function startTrainer(){ const sv=store.get('jat',{}); JT={done:new Set(sv.done||[]),best:sv.best||{},m:null,step:'home',i:0,right:0,fb:null,qs:[]}; scr='trainer'; render(); }
+function jatRank(){ return JAT_RANKS[Math.min(JT.done.size,JAT_RANKS.length-1)]; }
+function jatOpen(id){ JT.m=JAT_MODULES.find(x=>x.id===id); JT.step='learn'; render(); }
+function jatQuiz(){ JT.qs=JT.m.qs.map(q=>({q:q.q,why:q.why,opts:shuffle([{t:q.a,correct:true},...q.w.map(t=>({t,correct:false}))])})); JT.i=0; JT.right=0; JT.fb=null; JT.step='quiz'; render(); }
+function jatAnswer(k){ const q=JT.qs[JT.i], ok=q.opts[k].correct; if(ok) JT.right++; JT.fb={ok}; beep(ok?900:200,.2,ok?'triangle':'sawtooth'); render(); }
+function jatNext(){ JT.i++; JT.fb=null; if(JT.i>=JT.qs.length){ JT.step='result'; if(JT.right===JT.qs.length){ JT.done.add(JT.m.id); } JT.best[JT.m.id]=Math.max(JT.best[JT.m.id]||0,JT.right); jatSave(); } render(); }
+function renderTrainer(){
+  if(JT.step==='home'){
+    app.innerHTML=`<div class="card"><h2>🧑‍🚀 Junior Astronaut Trainer</h2>
+      <p class="sub">Welcome, trainee! Finish each lesson and answer every question right to earn a badge and climb the ranks.</p>
+      <p><span class="tag">Rank: ${jatRank()}</span><span class="tag">Badges ${JT.done.size}/${JAT_MODULES.length}</span></p>
+      <div class="prog"><div style="width:${JT.done.size/JAT_MODULES.length*100}%"></div></div>
+      <div class="grid">${JAT_MODULES.map(m=>`<button class="dest" onclick="jatOpen('${m.id}')"><span class="emoji">${m.emoji}</span><b style="font-family:var(--display)">${m.name}</b><small style="color:var(--muted)">${JT.done.has(m.id)?'🏅 Badge earned':'Not yet earned'}</small></button>`).join('')}</div>
+      ${JT.done.size===JAT_MODULES.length?'<div class="fact"><b>🎉 Graduation!</b> You completed every module. You are a certified Mission Hero!</div>':''}
+    </div><div class="row"><button onclick="scr='menu';render()">◀ Back</button></div>`;
+  } else if(JT.step==='learn'){
+    const m=JT.m;
+    app.innerHTML=`<div class="card"><h2>${m.emoji} ${m.name}</h2><p style="font-size:1.1rem;line-height:1.6">${m.intro}</p>
+      <div class="fact"><b>💡 Trainer tip:</b> ${m.tip}</div>
+      <div class="row"><button class="primary" onclick="jatQuiz()">Ready for the quiz ▶</button><button onclick="JT.step='home';render()">◀ Lessons</button></div></div>`;
+  } else if(JT.step==='quiz'){
+    const q=JT.qs[JT.i];
+    app.innerHTML=`<div class="card"><h2>${JT.m.emoji} Quiz — ${JT.i+1}/${JT.qs.length}</h2><div class="prog"><div style="width:${JT.i/JT.qs.length*100}%"></div></div>
+      <p style="font-size:1.1rem">${q.q}</p>
+      ${JT.fb?`<div class="fact" style="border-color:${JT.fb.ok?'var(--good)':'var(--bad)'}"><b>${JT.fb.ok?'✅ Great job!':'❌ Not quite.'}</b> ${q.why}</div><button class="primary" onclick="jatNext()">Next ▶</button>`
+      :`<div class="choices">${q.opts.map((o,k)=>`<button onclick="jatAnswer(${k})">${o.t}</button>`).join('')}</div>`}</div>`;
+  } else {
+    const perfect=JT.right===JT.qs.length;
+    app.innerHTML=`<div class="card center"><p class="big">${perfect?'🏅':'📘'}</p><h2>${perfect?'Badge earned!':'Nearly there!'}</h2>
+      <p>You got <b>${JT.right} / ${JT.qs.length}</b> right.</p><p><span class="tag">Rank: ${jatRank()}</span></p>
+      <p class="sub">${perfect?'You are one step closer to Mission Hero.':'Read the lesson again and have another go for the badge.'}</p>
+      <div class="row" style="justify-content:center"><button class="primary" onclick="${perfect?"JT.step='home'":"JT.step='learn'"};render()">${perfect?'More lessons':'Review lesson'}</button><button onclick="JT.step='home';render()">◀ Lessons</button></div></div>`;
+  }
+}
 
 render();
 </script>
